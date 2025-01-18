@@ -11,20 +11,47 @@ from catboost import CatBoostRegressor
 from math import sqrt
 from sklearn.preprocessing import StandardScaler
 
+
 # Load dataset
-dataset = pd.read_csv('movies_inflation+director.csv')
+def load_dataset():
+    dsName = input("Enter the dataset name (without .csv): ")
+    try:
+        dataset = pd.read_csv(dsName + '.csv')
+        print(f"Dataset '{dsName}' loaded successfully.")
+        return dataset
+    except FileNotFoundError:
+        print(f"Error: The file {dsName}.csv was not found.")
+        return None
 
-# Ensure no missing values in target column
-dataset = dataset.dropna(subset=['AdjBoxOffice'])
 
-# Features and target variable
-features = ['Running time', 'Actors Box Office %', 'Director Box Office %',
-            'Oscar and Golden Globes nominations', 'Oscar and Golden Globes awards',
-            'Release year', 'IMDb score', 'genre_encoded', 'AdjBudget', 'AdjEarnings']
-target_column = 'AdjBoxOffice'
+# Automatically select features and target column based on user input
+def auto_select_features_target(dataset):
+    # Get the target column from the user
+    target_column = input("Enter the target column name: ").strip()
 
-X = dataset[features].values
-y = dataset[target_column].values
+    # Check if target column exists in the dataset
+    if target_column not in dataset.columns:
+        print(f"Error: The target column '{target_column}' does not exist in the dataset.")
+        return None, None
+
+    # Select numeric columns as features
+    features = dataset.select_dtypes(include=['number']).columns.tolist()
+
+    # Remove target column from features if it's numeric
+    if target_column in features:
+        features.remove(target_column)
+
+    print(f"Features selected: {features}")
+    print(f"Target column selected: {target_column}")
+    return features, target_column
+
+dataset = load_dataset()
+if dataset is not None:
+    features, target_column = auto_select_features_target(dataset)
+
+    if features and target_column:
+        X = dataset[features].values
+        y = dataset[target_column].values
 
 # Scaling the features
 scaler = StandardScaler()
@@ -52,9 +79,9 @@ def categorize_box_office(values):
             categories.append("Flop")
         elif value < 5e6:
             categories.append("Below Average")
-        elif value < 20e6:
+        elif value < 40e6:
             categories.append("Average")
-        elif value < 100e6:
+        elif value < 150e6:
             categories.append("Hit")
         else:
             categories.append("Blockbuster")
