@@ -2,6 +2,8 @@ import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import MultiLabelBinarizer
 import time
+from sklearn.preprocessing import MinMaxScaler
+
 
 start_time = time.time()
 df = pd.read_csv('TMBD Movie Dataset 2.csv', encoding='ISO-8859-1')
@@ -106,6 +108,27 @@ movie_star_power = expanded_df.groupby('id')['star_power'].sum().reset_index()
 df = df.merge(movie_star_power, on='id', how='left')
 
 
+
+# Copy dataset to avoid modifying the original
+scaled_dataset = df.copy()
+# Define columns that require Min-Max Scaling
+# Columns to scale
+columns_to_scale = [
+    'popularity', 'runtime', 'vote_count',
+    'budget_adj', 'profit',
+    'popularity_encoded', 'star_power'
+]
+# Initialize the Min-Max Scaler
+scaler = MinMaxScaler()
+# Apply scaling to the selected columns
+scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
+# Verify the scaling
+print(scaled_dataset[columns_to_scale].describe())
+
+# Merge scaled values back into the original dataset
+df[columns_to_scale] = scaled_dataset[columns_to_scale]
+
+
 # End timer
 end_time = time.time()
 
@@ -126,7 +149,7 @@ plt.tight_layout()
 #plt.show()
 
 df = df.drop(['popularity_level', 'release_date', 'release_day_name', 'cast'], axis=1)
-df.to_csv('TMBD2.csv', index=False)
+df.to_csv('df.csv', index=False)
 
 
 

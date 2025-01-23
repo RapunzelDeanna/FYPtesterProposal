@@ -1,16 +1,14 @@
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import mean_squared_error, r2_score
+from matplotlib import pyplot as plt
+from sklearn.model_selection import KFold, cross_val_score, cross_val_predict
+from sklearn.metrics import accuracy_score
 from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
 from sklearn.svm import SVR
 from xgboost import XGBRegressor
 from lightgbm import LGBMRegressor
 from catboost import CatBoostRegressor
-from math import sqrt
 from sklearn.preprocessing import StandardScaler
-
 
 # Load dataset
 def load_dataset():
@@ -23,10 +21,8 @@ def load_dataset():
         print(f"Error: The file {dsName}.csv was not found.")
         return None
 
-
 # Automatically select features and target column based on user input
 def auto_select_features_target(dataset):
-    # Get the target column from the user
     target_column = input("Enter the target column name: ").strip()
 
     # Check if target column exists in the dataset
@@ -45,6 +41,94 @@ def auto_select_features_target(dataset):
     print(f"Target column selected: {target_column}")
     return features, target_column
 
+# Categorize the predicted and actual values into categories
+def categorize_box_office(value):
+    if value < 1e6:
+        return "Flop"
+    elif value < 5e6:
+        return"Below Average"
+    elif value < 40e6:
+        return"Average"
+    elif value < 150e6:
+        return"Hit"
+    else:
+        return"Blockbuster"
+
+def one_away_accuracy(y_true, y_pred):
+    """Calculate the one-away accuracy: checks if the prediction is within one category away from the true value."""
+    correct = 0
+    total = len(y_true)
+
+    # Convert both true values and predictions into categories
+    true_categories = [categorize_box_office(value) for value in y_true]
+    pred_categories = [categorize_box_office(value) for value in y_pred]
+
+    # Define a mapping of categories to numeric values for comparison
+    category_map = {'Flop': 0, 'Below Average': 1, 'Average': 2, 'Hit': 3, 'Blockbuster': 4}
+
+    for true, pred in zip(true_categories, pred_categories):
+        if abs(category_map[true] - category_map[pred]) <= 1:
+            correct += 1
+
+    return correct / total * 100  # Return percentage of one-away matches
+
+def exact_accuracy(y_true, y_pred):
+    """Calculate the exact accuracy: checks if the predicted category exactly matches the true value."""
+    correct = 0
+    total = len(y_true)
+
+    # Convert both true values and predictions into categories
+    true_categories = [categorize_box_office(value) for value in y_true]
+    pred_categories = [categorize_box_office(value) for value in y_pred]
+
+    # Check if the categories exactly match
+    for true, pred in zip(true_categories, pred_categories):
+        if true == pred:
+            correct += 1
+
+    return correct / total * 100  # Return percentage of exact matches
+
+def plot_category_comparison(ax, y_true, y_pred):
+    # Convert y_true and y_pred to categories
+    true_categories = [categorize_box_office(value) for value in y_true]
+    pred_categories = [categorize_box_office(value) for value in y_pred]
+
+    # Create a DataFrame for comparison
+    comparison_df = pd.DataFrame({
+        'Actual': true_categories,
+        'Predicted': pred_categories
+    })
+
+    # Ensure category_order is in the correct order
+    category_order = ['Flop', 'Below Average', 'Average', 'Hit', 'Blockbuster']
+
+    # Count the occurrences of each category in the actual and predicted values
+    actual_counts = comparison_df['Actual'].value_counts().reindex(category_order, fill_value=0)
+    predicted_counts = comparison_df['Predicted'].value_counts().reindex(category_order, fill_value=0)
+
+    # Set the x positions for each category
+    x = np.arange(len(category_order))
+
+    # Plot bars for actual categories
+    ax.bar(x - 0.2, actual_counts, width=0.4, label='Actual', alpha=0.75)
+
+    # Plot bars for predicted categories, shifted to the right
+    ax.bar(x + 0.2, predicted_counts, width=0.4, label='Predicted', alpha=0.75)
+
+    # Adding labels and title
+    ax.set_title('Actual vs Predicted Categories')
+    ax.set_xlabel('Category')
+    ax.set_ylabel('Count')
+    ax.set_xticks(x)
+    ax.set_xticklabels(category_order)
+
+    # Rotate x-axis labels for better readability
+    ax.tick_params(axis='x', rotation=45)
+
+    # Display the legend
+    ax.legend()
+
+# Main program
 dataset = load_dataset()
 if dataset is not None:
     features, target_column = auto_select_features_target(dataset)
@@ -57,133 +141,69 @@ if dataset is not None:
 scaler = StandardScaler()
 X_scaled = scaler.fit_transform(X)
 
-# Train-Test split
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-
 # Initialize models
 models = {
     "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
     "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, learning_rate=0.1, random_state=42),
     "XGBoost": XGBRegressor(n_estimators=100, learning_rate=0.1, random_state=42),
-    "LightGBM": LGBMRegressor(n_estimators=100, learning_rate=0.1, random_state=42),
+    "LightGBM": LGBMRegressor(n_estimators=100, learning_rate=0.1, random_state=42, verbose=-1),
     "CatBoost": CatBoostRegressor(iterations=100, learning_rate=0.1, random_state=42, verbose=0),
     "SVR": SVR(kernel='rbf', C=1.0, epsilon=0.1)
 }
 
+# Define KFold for 10-fold cross-validation
+kf = KFold(n_splits=10, shuffle=True, random_state=42)
 
-# Define categories for box office performance
-def categorize_box_office(values):
-    categories = []
-    for value in values:
-        if value < 1e6:
-            categories.append("Flop")
-        elif value < 5e6:
-            categories.append("Below Average")
-        elif value < 40e6:
-            categories.append("Average")
-        elif value < 150e6:
-            categories.append("Hit")
-        else:
-            categories.append("Blockbuster")
-    return np.array(categories)
+# Initialize dictionary to store cross-validation results
+cv_results = {}
 
+# Create a grid layout for the plots (2 rows and 3 columns for 6 models)
+fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+axes = axes.flatten()  # Flatten the 2D array to make indexing easier
 
-# Categorize the actual test values
-actual_categories = categorize_box_office(y_test)
+fig.tight_layout(pad=5.0)
 
-# Train and evaluate each model
-results = {}
-category_distributions = {}
-accuracy_results = {}
+# Perform 10-fold cross-validation for each model and plot
+for i, (name, model) in enumerate(models.items()):
+    print(f"\nTraining {name} with 10-Fold Cross-Validation...")
 
-for name, model in models.items():
-    print(f"\nTraining {name}...")
-    model.fit(X_train, y_train)  # Train the model
-    y_pred = model.predict(X_test)  # Predict
+    # Cross-validation MSE (negative due to scoring format) and accuracy calculation
+    mse_scores = cross_val_score(model, X_scaled, y, cv=kf, scoring='neg_mean_squared_error')
+    r2_scores = cross_val_score(model, X_scaled, y, cv=kf, scoring='r2')
 
-    # Evaluate regression performance
-    mse = mean_squared_error(y_test, y_pred)
-    rmse = sqrt(mse)
-    r2 = r2_score(y_test, y_pred)
+    # Convert MSE to positive
+    mse_scores = -mse_scores
 
-    # Categorize predictions
-    predicted_categories = categorize_box_office(y_pred)
+    # Calculate RMSE from MSE
+    rmse_scores = np.sqrt(mse_scores)
 
-    # Calculate category distribution
-    actual_distribution = pd.Series(actual_categories).value_counts()
-    predicted_distribution = pd.Series(predicted_categories).value_counts()
+    # Calculate mean values
+    mse_mean = mse_scores.mean()
+    rmse_mean = rmse_scores.mean()
+    r2_mean = r2_scores.mean()
 
-    # Calculate accuracy of categorization
-    accuracy = np.mean(predicted_categories == actual_categories)
+    # Store cross-validation results
+    cv_results[name] = {
+        "MSE (Mean)": mse_mean,
+        "RMSE (Mean)": rmse_mean,
+        "R2 (Mean)": r2_mean
+    }
 
-    # Store results
-    results[name] = {"MSE": mse, "RMSE": rmse, "R2": r2}
-    category_distributions[name] = (actual_distribution, predicted_distribution)
-    accuracy_results[name] = accuracy
+    print(f"{name}:")
+    print(f"  MSE (Mean): {mse_mean:.2f}")
+    print(f"  RMSE (Mean): {rmse_mean:.2f}")
+    print(f"  R2 (Mean): {r2_mean:.2f}")
 
-    print(f"Results for {name}:")
-    print(f"  MSE: {mse}")
-    print(f"  RMSE: {rmse}")
-    print(f"  R2: {r2}")
-    print(f"  Accuracy: {accuracy:.2%}")
+    # One-away accuracy calculation after cross-validation (using the model on each fold)
+    y_pred = cross_val_predict(model, X_scaled, y, cv=kf)
+    one_away_acc = one_away_accuracy(y, y_pred)
+    print(f"  One-Away Accuracy: {one_away_acc:.2f}%")
 
-# Print all results for comparison
-print("\nSummary of Results:")
-for name, metrics in results.items():
-    print(
-        f"{name}: MSE = {metrics['MSE']}, RMSE = {metrics['RMSE']}, R2 = {metrics['R2']}, Accuracy = {accuracy_results[name]:.2%}")
+    # Exact accuracy calculation after cross-validation (using the model on each fold)
+    exact_acc = exact_accuracy(y, y_pred)
+    print(f"  Exact Accuracy: {exact_acc:.2f}%")
 
-# Define category order
-category_order = ["Flop", "Below Average", "Average", "Hit", "Blockbuster"]
-category_to_index = {category: idx for idx, category in enumerate(category_order)}
+    # Plot category comparison for actual vs predicted values in the respective subplot
+    plot_category_comparison(axes[i], y, y_pred)
 
-# Initialize dictionaries to store results
-one_away_accuracies = {}
-
-for name, model in models.items():
-    # Predict categories for this model
-    y_pred = model.predict(X_test)
-    predicted_categories = categorize_box_office(y_pred)
-    actual_categories = categorize_box_office(y_test)
-
-    # Convert categories to indices
-    predicted_indices = [category_to_index[cat] for cat in predicted_categories]
-    actual_indices = [category_to_index[cat] for cat in actual_categories]
-
-    # Calculate exact matches
-    exact_matches = sum(1 for actual, pred in zip(actual_indices, predicted_indices) if actual == pred)
-    exact_accuracy = exact_matches / len(y_test) * 100
-
-    # Calculate one-away matches
-    one_away_matches = sum(1 for actual, pred in zip(actual_indices, predicted_indices)
-                           if abs(actual - pred) <= 1)
-    one_away_accuracy = one_away_matches / len(y_test) * 100
-
-    # Store accuracies
-    one_away_accuracies[name] = {"Exact Accuracy": exact_accuracy, "One-Away Accuracy": one_away_accuracy}
-
-    # Print model results
-    print(f"\n{name}:")
-    print(f"  Exact Accuracy: {exact_accuracy:.2f}%")
-    print(f"  One-Away Accuracy: {one_away_accuracy:.2f}%")
-
-    # Plot bar chart for actual vs predicted categories
-    predicted_distribution = pd.Series(predicted_categories).value_counts().reindex(category_order, fill_value=0)
-    actual_distribution = pd.Series(actual_categories).value_counts().reindex(category_order, fill_value=0)
-    distribution_df = pd.DataFrame({'Actual': actual_distribution, 'Predicted': predicted_distribution})
-
-    plt.figure(figsize=(12, 6))
-    distribution_df.plot(kind='bar', alpha=0.75, width=0.8, ax=plt.gca())
-    plt.title(f"Actual vs. Predicted Box Office Categories for {name}")
-    plt.ylabel("Count")
-    plt.xlabel("Category")
-    plt.xticks(rotation=45)
-    plt.legend(["Actual", "Predicted"])
-    plt.tight_layout()
-    plt.show()
-
-# Print overall summary of one-away accuracies
-print("\nOne-Away Accuracy Summary:")
-for name, accuracies in one_away_accuracies.items():
-    print(f"{name}: Exact Accuracy = {accuracies['Exact Accuracy']:.2f}%, "
-          f"One-Away Accuracy = {accuracies['One-Away Accuracy']:.2f}%")
+plt.show()
