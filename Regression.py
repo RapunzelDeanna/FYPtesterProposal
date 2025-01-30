@@ -1,5 +1,3 @@
-import math
-
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -17,13 +15,13 @@ from sklearn.neural_network import MLPRegressor
 
 # Load dataset
 def load_dataset():
-    dsName = input("Enter the dataset name (without .csv): ")
+    ds_name = input("Enter the dataset name (without .csv): ")
     try:
-        dataset = pd.read_csv(dsName + '.csv')
-        print(f"Dataset '{dsName}' loaded successfully.")
+        dataset = pd.read_csv(ds_name + '.csv')
+        print(f"Dataset '{ds_name}' loaded successfully.")
         return dataset
     except FileNotFoundError:
-        print(f"Error: The file {dsName}.csv was not found.")
+        print(f"Error: The file {ds_name}.csv was not found.")
         return None
 
 
@@ -43,6 +41,7 @@ def auto_select_features_target(dataset):
     if target_column in features:
         features.remove(target_column)
 
+    # User is aware of the features being used
     print(f"Features selected: {features}")
     print(f"Target column selected: {target_column}")
     return features, target_column
@@ -73,6 +72,7 @@ def one_away_accuracy(y_true, y_pred):
         abs(category_map[true] - category_map[pred]) <= 1
         for true, pred in zip(true_categories, pred_categories)
     )
+    #Returns as percentage
     return correct / len(y_true) * 100
 
 
@@ -114,43 +114,43 @@ def train_and_evaluate_models(dataset, features, target_column):
     scaler = StandardScaler()
     X_scaled = scaler.fit_transform(X)
 
+    # List of all machine learning algorithms used
     models = {
         "Linear Regression": LinearRegression(),
         "Ridge Regression": Ridge(alpha=1.0),
         "Lasso Regression": Lasso(alpha=0.01),
         "ElasticNet": ElasticNet(alpha=0.01, l1_ratio=0.5),
-        "Decision Tree": DecisionTreeRegressor(random_state=42),
-        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=42),
-        "Extra Trees": ExtraTreesRegressor(n_estimators=100, random_state=42),
-        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=42),
-        "AdaBoost": AdaBoostRegressor(n_estimators=100, random_state=42),
-        "XGBoost": XGBRegressor(n_estimators=100, random_state=42),
-        "LightGBM": LGBMRegressor(n_estimators=100, random_state=42, verbose=-1),
-        "CatBoost": CatBoostRegressor(iterations=100, random_state=42, verbose=0),
+        "Decision Tree": DecisionTreeRegressor(random_state=77),
+        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=77),
+        "Extra Trees": ExtraTreesRegressor(n_estimators=100, random_state=77),
+        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=77),
+        "AdaBoost": AdaBoostRegressor(n_estimators=100, random_state=77),
+        "XGBoost": XGBRegressor(n_estimators=100, random_state=77),
+        "LightGBM": LGBMRegressor(n_estimators=100, random_state=77, verbose=-1),
+        "CatBoost": CatBoostRegressor(iterations=100, random_state=77, verbose=0),
         "SVR (RBF Kernel)": SVR(kernel="rbf"),
         "SVR (Linear Kernel)": SVR(kernel="linear"),
         "KNN": KNeighborsRegressor(n_neighbors=5),
-        "MLP (Neural Network)": MLPRegressor(hidden_layer_sizes=(64, 32), activation='relu', solver='adam',
-                                             max_iter=1000, random_state=42)
+        #Current issue with this algorithm (WIP)
+        #"MLP (Neural Network)": MLPRegressor(hidden_layer_sizes=(64, 32), activation='relu', solver='adam',
+                                             #max_iter=2000, random_state=42, learning_rate_init=0.001, n_iter_no_change=10)
     }
 
-    kf = KFold(n_splits=10, shuffle=True, random_state=42)
+    kf = KFold(n_splits=10, shuffle=True, random_state=77)
     num_models = len(models)
 
-    models_per_figure = 6  # Set the max number of models per figure
+    models_per_figure = 6
     model_names = list(models.keys())
+
+    # Store the results for plotting
+    plot_data = []
 
     for start in range(0, num_models, models_per_figure):
         end = min(start + models_per_figure, num_models)
         subset_models = model_names[start:end]
 
-        cols = 3  # 3 columns per figure
-        rows = -(-len(subset_models) // cols)  # Ceiling division to get row count
-
-        fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 5))
-        axes = axes.flatten()
-
-        for i, name in enumerate(subset_models):
+        # Calculates mean for each model and displays
+        for name in subset_models:
             model = models[name]
             print(f"\nTraining {name} with 10-Fold Cross-Validation...")
 
@@ -176,8 +176,24 @@ def train_and_evaluate_models(dataset, features, target_column):
             print(f"  One-Away Accuracy: {one_away_acc:.2f}%")
             print(f"  Exact Accuracy: {exact_acc:.2f}%")
 
+            # Collect the results for later plotting
+            plot_data.append((name, y, y_pred))
+
+    for start in range(0, len(plot_data), models_per_figure):
+        end = min(start + models_per_figure, len(plot_data))
+        subset_plot_data = plot_data[start:end]
+
+        # Num of columns per row
+        cols = 3
+        # Ceiling division to get row count
+        rows = -(-len(subset_plot_data) // cols)
+        # Allows for growing number of MLA
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 5))
+        axes = axes.flatten()
+
+        for i, (name, y_true, y_pred) in enumerate(subset_plot_data):
             # Plot category comparison in the assigned subplot
-            plot_category_comparison(axes[i], y, y_pred)
+            plot_category_comparison(axes[i], y_true, y_pred)
             axes[i].set_title(name)
 
         # Hide unused subplots in the last figure
@@ -186,7 +202,6 @@ def train_and_evaluate_models(dataset, features, target_column):
 
         plt.tight_layout()
         plt.show()
-
 
 
 # Main program
