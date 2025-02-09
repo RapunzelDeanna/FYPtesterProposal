@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import seaborn as sns
+import Regression
 
 def plot_regression_results(y_test, y_pred):
     # 1. Predicted vs Actual Values
@@ -43,5 +44,14 @@ def plot_regression_results(y_test, y_pred):
     plt.show()
 
 
+# Load dataset
+dataset = Regression.load_dataset()
 
+if dataset is not None:
+    features, target_column = Regression.auto_select_features_target(dataset)
+    if features and target_column:
+        y_test, y_pred = Regression.train_and_evaluate_models(dataset, features, target_column)
+
+        # Use the results in visualization
+        plot_regression_results(y_test, y_pred)
 

@@ -1,5 +1,6 @@
 import pandas as pd
 from matplotlib import pyplot as plt
+from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.preprocessing import MultiLabelBinarizer
 import time
 from sklearn.preprocessing import MinMaxScaler
@@ -21,8 +22,8 @@ missing_values = df.isnull().sum()
 #print(missing_values)
 
 # dropping irrelevant columns
-features_to_drop_temp = ['Unnamed: 0', 'revenue', 'budget', 'imdb_id', 'original_title', 'homepage', 'director', 'tagline', 'keywords', 'overview', 'production_companies']
-df = df.drop(features_to_drop_temp, axis=1)
+features_to_drop = ['Unnamed: 0', 'revenue', 'budget', 'imdb_id', 'original_title', 'homepage', 'tagline', 'overview', 'production_companies', 'profit']
+df = df.drop(features_to_drop, axis=1)
 
 
 # Handle multiple genres
@@ -54,7 +55,6 @@ df['popularity_encoded'] = df['popularity_level'].map(popularity_mapping)
 
 # Convert release_date to datetime format
 df['release_date'] = pd.to_datetime(df['release_date'])
-
 # Extract release month and release day
 df['release_month'] = df['release_date'].dt.month
 # Extract the day of the week (0 = Monday, 6 = Sunday)
@@ -68,7 +68,6 @@ day_counts = df['release_day_name'].value_counts()
 # Sort days of the week in order
 day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 day_counts = day_counts.reindex(day_order)
-
 
 
 # Calculate Star Power based on the combined revenue of each of the cast for that movie
@@ -89,14 +88,65 @@ movie_star_power = expanded_df.groupby('id')['star_power'].sum().reset_index()
 df = df.merge(movie_star_power, on='id', how='left')
 
 
+# Calculate Director Power based on the total revenue of all movies they directed
+# Split the 'director' column by '|' and expand into multiple rows
+expanded_df = df.assign(director=df['director'].str.split('|')).explode('director')
+
+# Aggregate total revenue by each director
+director_power = expanded_df.groupby('director')['revenue_adj'].sum().reset_index()
+
+# Rename for clarity
+director_power.rename(columns={'revenue_adj': 'director_power'}, inplace=True)
+
+# Sort directors by their total revenue (Director Power)
+director_power = director_power.sort_values(by='director_power', ascending=False)
+
+# Merge Director Power back into the expanded DataFrame
+expanded_df = expanded_df.merge(director_power, on='director', how='left')
+
+# Group by movie and sum the Director Power for each movie
+movie_director_power = expanded_df.groupby('id')['director_power'].sum().reset_index()
+
+# Merge total Director Power back into the original DataFrame
+df = df.merge(movie_director_power, on='id', how='left')
+
+
+# Function to process multi-word phrases (replaces spaces with underscores)
+def process_keywords(keywords):
+    # Split the keywords by commas
+    keyword_list = keywords.split(" | ")
+
+    # Replace spaces in multi-word phrases with "_"
+    keyword_list = [kw.replace(" ", "_") for kw in keyword_list]
+
+    return " ".join(keyword_list)
+
+
+# Apply the function to the keywords column
+df["keywords"] = df["keywords"].apply(process_keywords)
+
+# Apply TF-IDF transformation
+tfidf = TfidfVectorizer(max_features=500, stop_words="english",
+                        token_pattern=r"\b\w+\b")  # token_pattern ensures that words are captured properly
+tfidf_matrix = tfidf.fit_transform(df["keywords"])
+
+# Convert TF-IDF matrix to DataFrame
+tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=tfidf.get_feature_names_out())
+
+# Concatenate TF-IDF features with the original dataset
+df = pd.concat([df.drop(columns=["keywords"]), tfidf_df], axis=1)  # Drop original keywords column
+
+# Show completion message and new shape
+print("TF-IDF preprocessing completed. New shape:", df.shape)
+print(df.head())
+
 
 # Copy dataset to avoid modifying the original
 scaled_dataset = df.copy()
 # Define columns that require Min-Max Scaling
 columns_to_scale = [
     'popularity', 'runtime', 'vote_count',
-    'budget_adj', 'profit',
-    'popularity_encoded', 'star_power'
+    'budget_adj', 'popularity_encoded', 'star_power', 'director_power'
 ]
 # Initialize the Min-Max Scaler
 scaler = MinMaxScaler()
@@ -125,9 +175,9 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 
 # Show the plot
 plt.tight_layout()
-plt.show()
+#plt.show()
 
-df = df.drop(['popularity_level', 'release_date', 'release_day_name', 'cast'], axis=1)
+df = df.drop(['popularity_level', 'release_date', 'release_day_name', 'cast', 'director'], axis=1)
 
 #Preprocessed data is saved to the df.csv file (for faster testing purposes)
 df.to_csv('df.csv', index=False)
