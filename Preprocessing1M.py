@@ -7,7 +7,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Takes a while to run so this just checks
 start_time = time.time()
-df = pd.read_csv('TMDB_movie_dataset_v11.csv', encoding='ISO-8859-1')
+df = pd.read_csv('Movies1M.csv', encoding='ISO-8859-1')
 df = df.head(2000)
 #removes all adult movies
 df = df[~df['adult']]
