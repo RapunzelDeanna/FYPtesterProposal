@@ -195,7 +195,7 @@ print(df.head())
 scaled_dataset = df.copy()
 # Define columns that require Min-Max Scaling
 columns_to_scale = ['vote_average', 'vote_count', 'runtime', 'popularity',
-                    'AdjBudget', 'company_rev'
+                    'AdjBudget', 'company_rev', 'Adjrevenue'
 ]
 # Initialize the Min-Max Scaler
 scaler = MinMaxScaler()
@@ -211,7 +211,7 @@ df[columns_to_scale] = scaled_dataset[columns_to_scale]
 
 
 # Preprocessed file is saved as Movies1M.csv
-df.to_csv('Movies1Msample.csv', index=False)
+df.to_csv('Movies1Mscaled.csv', index=False)
 
 # End timer
 end_time = time.time()

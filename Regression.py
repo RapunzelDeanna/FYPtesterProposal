@@ -12,19 +12,49 @@ from xgboost import XGBRegressor
 from lightgbm import LGBMRegressor
 from catboost import CatBoostRegressor
 from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, mean_squared_error, r2_score
 from sklearn.ensemble import StackingRegressor
+from sklearn.model_selection import train_test_split
 
-# Load dataset
-def load_dataset():
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+
+
+# Load dataset, preprocess, and split into train/test sets
+def load_and_prepare_data():
     ds_name = input("Enter the dataset name (without .csv): ")
+
     try:
         dataset = pd.read_csv(ds_name + '.csv')
         print(f"Dataset '{ds_name}' loaded successfully.")
-        return dataset
+        print(f"Shape: {dataset.shape}")
+
+        # User selects target column
+        print("\nAvailable columns:", dataset.columns.tolist())
+        target_column = input("Enter the target column name: ")
+
+        if target_column not in dataset.columns:
+            print(f"Error: '{target_column}' not found in dataset.")
+            return None, None, None, None
+
+        features = [col for col in dataset.columns if col != target_column]
+
+        X = dataset[features].values
+        y = dataset[target_column].values
+
+        # Standardize features
+        scaler = StandardScaler()
+        X_scaled = scaler.fit_transform(X)
+
+        # Train-Test Split (80% Train, 20% Test)
+        X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=77)
+
+        return X_train, X_test, y_train, y_test, features
+
     except FileNotFoundError:
         print(f"Error: The file {ds_name}.csv was not found.")
-        return None
+        return None, None, None, None, None
 
 
 # Automatically select features and target column based on user input
@@ -47,6 +77,200 @@ def auto_select_features_target(dataset):
     print(f"Features selected: {features}")
     print(f"Target column selected: {target_column}")
     return features, target_column
+
+def get_models():
+    # List of all machine learning algorithms used
+    models = {
+        "Linear Regression": LinearRegression(),
+        "Ridge Regression": Ridge(alpha=0.01, max_iter=10000),
+        "Lasso Regression": Lasso(alpha=0.01, max_iter=10000),
+        "ElasticNet": ElasticNet(alpha=0.01, l1_ratio=0.5),
+        "Decision Tree": DecisionTreeRegressor(random_state=77),
+        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=77, verbose=0),
+        "Extra Trees": ExtraTreesRegressor(n_estimators=100, random_state=77),
+        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=77),
+        "AdaBoost": AdaBoostRegressor(n_estimators=100, random_state=77),
+        "XGBoost": XGBRegressor(n_estimators=100, random_state=77),
+        "LightGBM": LGBMRegressor(n_estimators=100, random_state=77, verbose=0),
+        "CatBoost": CatBoostRegressor(iterations=100, random_state=77, verbose=0),
+        "SVR (RBF Kernel)": SVR(kernel="rbf"),
+        "SVR (Linear Kernel)": SVR(kernel="linear"),
+        "KNN": KNeighborsRegressor(n_neighbors=5),
+        #Current issue with this algorithm (WIP)
+        #"MLP (Neural Network)": MLPRegressor(hidden_layer_sizes=(64, 32), activation='relu', solver='adam',
+                                             #max_iter=2000, random_state=42, learning_rate_init=0.001, n_iter_no_change=10)
+    }
+
+
+    # Define base models for stacking
+    base_models = [
+         ("xgb", XGBRegressor(n_estimators=100, random_state=77)),
+         ("lgbm", LGBMRegressor(n_estimators=100, random_state=77, verbose=0)),
+         ("cat", CatBoostRegressor(iterations=100, random_state=77, verbose=0)),
+         ("gbdt", GradientBoostingRegressor(n_estimators=100, random_state=77)),
+         ("rf", RandomForestRegressor(n_estimators=100, random_state=77)),
+         ("svr", SVR(kernel="rbf"))
+    ]
+
+    # Define the meta-model (final estimator)
+    meta_model = Ridge(alpha=0.01, max_iter=10000)
+
+    # Define the Stacking Ensemble
+    stacking_model = StackingRegressor(estimators=base_models, final_estimator=meta_model)
+
+    # Add Stacking model to the list of models
+    models["Stacking Ensemble"] = stacking_model
+
+    return models
+
+def validate_models(models, X_train, y_train, cv_splits=10):
+    kf = KFold(n_splits=cv_splits, shuffle=True, random_state=77)
+        # Calculates mean for each model and displays
+    for name, model in models.items():
+        print(f"\nTraining {name} ...with cross validation")
+        mse_scores = cross_val_score(model, X_train, y_train, cv=kf, scoring='neg_mean_squared_error')
+        r2_scores = cross_val_score(model, X_train, y_train, cv=kf, scoring='r2')
+        mse_mean = -mse_scores.mean()  # Convert negative MSE back to positive
+        rmse_mean = np.sqrt(mse_mean)  # Compute RMSE
+
+
+        print(f"\n{name} Validation:")
+        print(f"  MSE: {mse_scores.mean():.2f}")
+        print(f"  RMSE: {rmse_mean:.2f}")
+        print(f"  R2: {r2_scores.mean():.2f}")
+
+
+def test_models(models, X_train, X_test, y_train, y_test, features):
+    # Store the results for plotting
+    plot_data = []
+    confusion_matrices = []
+    feature_importance = []
+    y_preds = {}
+    for name, model in models.items():
+        print(f"\nTesting {name} ...")
+
+        # Train the model
+        model.fit(X_train, y_train)
+
+        # Predict on test set
+        y_pred_test = model.predict(X_test)
+        y_preds[name] = y_pred_test
+
+        # Store for later plotting
+        plot_data.append((name, y_test, y_pred_test))
+        # Print numeric prediction (revenue values)
+        print(f"{name} Numeric Predictions (Sample):")
+        for actual, predicted in zip(y_test[:10], y_pred_test[:10]):  # Show first 10 predictions
+            print(f"Actual: {actual:.2f}  Predicted: {predicted:.2f}")
+
+
+        # Calculate Metrics
+        mse = mean_squared_error(y_test, y_pred_test)
+        rmse = np.sqrt(mse)
+        r2 = r2_score(y_test, y_pred_test)
+        one_away_acc = one_away_accuracy(y_test, y_pred_test)
+        exact_acc = exact_accuracy(y_test, y_pred_test)
+
+        # Display results
+        print(f"\n{name} Test Results:")
+        print(f"  MSE: {mse:.2f}")
+        print(f"  RMSE: {rmse:.2f}")
+        print(f"  R2: {r2:.2f}")
+        print(f"  One-Away Accuracy: {one_away_acc:.2f}%")
+        print(f"  Exact Accuracy: {exact_acc:.2f}%")
+
+
+            # Collect Confusion Matrix
+        collect_confusion_matrices(name, y_test, y_pred_test, confusion_matrices)
+
+        if hasattr(model, "feature_importances_"):  # Tree-based models
+            importance = model.feature_importances_
+            feature_importance.append((name, importance))
+
+        elif hasattr(model, "coef_"):  # Linear models
+            importance = np.abs(model.coef_)
+            if importance.ndim > 1:  # Handle multi-output case
+                importance = importance.mean(axis=0)
+            feature_importance.append((name, importance))
+
+        else:
+            print(f"{name} does not have feature importance or coefficients.")
+
+            # After all models have been evaluated, plot confusion matrices
+    plot_confusion_matrices(confusion_matrices)
+
+            # Plot feature importance if any model supports it
+    if feature_importance:
+        plot_feature_importance(feature_importance, features)
+
+    return y_test, y_preds, plot_data  # Return test results
+
+
+def important_features(models, features, X_train, X_test, y_train, y_test, top_n=20):
+    feature_importance = {}
+    model_performance = {}
+
+    # Evaluate each model's performance and get feature importances
+    for name, model in models.items():
+        # Train the model
+        model.fit(X_train, y_train)
+
+        # Predict on the test set
+        y_pred_test = model.predict(X_test)
+
+        # Calculate R² score to evaluate model performance
+        r2 = r2_score(y_test, y_pred_test)
+
+        # Store performance metrics for model comparison
+        model_performance[name] = r2
+        print("model name: ", model)
+        print("model_performance", model_performance)
+        # If the model has feature importances, collect them
+        if hasattr(model, "feature_importances_"):
+            feature_importance[name] = model.feature_importances_
+        elif hasattr(model, "coef_"):  # For linear models
+            importance = np.abs(model.coef_)
+            if importance.ndim > 1:  # Handle multi-output case
+                importance = importance.mean(axis=0)
+            feature_importance[name] = importance
+
+        elif isinstance(model, StackingRegressor):  # Special handling for stacking model
+            stacked_importance = []
+            for estimator in model.estimators_:
+                if isinstance(estimator, tuple):  # Unpack if named tuple
+                    base_name, base_model = estimator
+                else:  # If it's just the model object
+                    base_name, base_model = str(type(estimator).__name__), estimator
+
+                if hasattr(base_model, "feature_importances_"):
+                    stacked_importance.append(base_model.feature_importances_)
+                elif hasattr(base_model, "coef_"):
+                    stacked_importance.append(np.abs(base_model.coef_))
+
+            if stacked_importance:
+                # Compute mean feature importance across base models
+                feature_importance[name] = np.mean(stacked_importance, axis=0)
+
+    # Choose the best model based on R²
+    best_model_name = max(model_performance, key=model_performance.get)  # model with highest R²
+
+    print(f"Best model based on R²: {best_model_name} with R²: {model_performance[best_model_name]:.2f}")
+
+    # Get the feature importances from the best model
+    importance = feature_importance[best_model_name]
+
+    # Sort the features based on importance (descending order)
+    sorted_idx = np.argsort(importance)[::-1]
+    top_features_idx = sorted_idx[:top_n]  # Select the top N features
+
+    # Get the top N features' names
+    selected_features = np.array(features)[top_features_idx]
+
+    # Filter the dataset to include only the top features
+    X_train_selected = X_train[:, top_features_idx]
+    X_test_selected = X_test[:, top_features_idx]
+
+    return X_train_selected, X_test_selected, selected_features, best_model_name
 
 
 # Categorize the predicted and actual values into categories
@@ -108,6 +332,39 @@ def plot_category_comparison(ax, y_true, y_pred):
     ax.set_xticklabels(category_order)
     ax.legend()
 
+def plot_model_results(models, plot_data, plot_category_comparison):
+    num_models = len(models)
+    models_per_figure = 6
+    model_names = list(models.keys())
+
+    for start in range(0, num_models, models_per_figure):
+        end = min(start + models_per_figure, num_models)
+        subset_models = model_names[start:end]
+    for start in range(0, len(plot_data), models_per_figure):
+        end = min(start + models_per_figure, len(plot_data))
+        subset_plot_data = plot_data[start:end]
+
+        # Num of columns per row
+        cols = 3
+        # Ceiling division to get row count
+        rows = -(-len(subset_plot_data) // cols)
+        # Allows for growing number of MLA
+        fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 5))
+        axes = axes.flatten()
+
+        for i, (name, y_true, y_pred) in enumerate(subset_plot_data):
+            # Plot category comparison in the assigned subplot
+            plot_category_comparison(axes[i], y_true, y_pred)
+            axes[i].set_title(name)
+
+        # Hide unused subplots in the last figure
+        for j in range(i + 1, len(axes)):
+            fig.delaxes(axes[j])
+
+        plt.tight_layout()
+        plt.show()
+
+
 # Store confusion matrices for all models
 def collect_confusion_matrices(name, y_true, y_pred, confusion_matrices):
     category_order = ['Flop', 'Below Average', 'Average', 'Hit', 'Blockbuster']
@@ -144,12 +401,12 @@ def plot_confusion_matrices(confusion_matrices):
             fig.delaxes(axes[j])
 
         plt.tight_layout()
-        #plt.show()
+        plt.show()
 
 
 def plot_feature_importance(feature_importance, feature_names):
     """Plot feature importance for models that support it in a 3x2 grid (6 models per figure)."""
-
+    selected_features_per_model = {}
     models_per_figure = 6  # Maximum number of models per figure
     num_models = len(feature_importance)
 
@@ -171,6 +428,7 @@ def plot_feature_importance(feature_importance, feature_names):
             axes[i].set_title(f"Feature Importance - {name}")
             axes[i].invert_yaxis()  # Ensure highest importance is at the top
 
+            selected_features_per_model[name] = top_feature_names
         # Hide unused subplots in the last figure
         for j in range(i + 1, len(axes)):
             fig.delaxes(axes[j])
@@ -178,183 +436,38 @@ def plot_feature_importance(feature_importance, feature_names):
         plt.tight_layout()
         plt.show()
 
-
-def train_and_evaluate_models(dataset, features, target_column):
-    X = dataset[features].values
-    y = dataset[target_column].values
-
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-
-    # List of all machine learning algorithms used
-    models = {
-        "Linear Regression": LinearRegression(),
-        "Ridge Regression": Ridge(alpha=0.01, max_iter=10000),
-        "Lasso Regression": Lasso(alpha=0.01, max_iter=10000),
-        "ElasticNet": ElasticNet(alpha=0.01, l1_ratio=0.5),
-        "Decision Tree": DecisionTreeRegressor(random_state=77),
-        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=77, verbose=0),
-        "Extra Trees": ExtraTreesRegressor(n_estimators=100, random_state=77),
-        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=77),
-        "AdaBoost": AdaBoostRegressor(n_estimators=100, random_state=77),
-        "XGBoost": XGBRegressor(n_estimators=100, random_state=77),
-        "LightGBM": LGBMRegressor(n_estimators=100, random_state=77, verbose=0),
-        "CatBoost": CatBoostRegressor(iterations=100, random_state=77, verbose=0),
-        "SVR (RBF Kernel)": SVR(kernel="rbf"),
-        "SVR (Linear Kernel)": SVR(kernel="linear"),
-        "KNN": KNeighborsRegressor(n_neighbors=5),
-        #Current issue with this algorithm (WIP)
-        #"MLP (Neural Network)": MLPRegressor(hidden_layer_sizes=(64, 32), activation='relu', solver='adam',
-                                             #max_iter=2000, random_state=42, learning_rate_init=0.001, n_iter_no_change=10)
-    }
-
-
-    # Define base models for stacking
-    base_models = [
-        ("xgb", XGBRegressor(n_estimators=100, random_state=77)),
-        ("lgbm", LGBMRegressor(n_estimators=100, random_state=77, verbose=0)),
-        ("cat", CatBoostRegressor(iterations=100, random_state=77, verbose=0)),
-        ("gbdt", GradientBoostingRegressor(n_estimators=100, random_state=77)),
-        ("rf", RandomForestRegressor(n_estimators=100, random_state=77)),
-        ("svr", SVR(kernel="rbf"))
-    ]
-
-    # Define the meta-model (final estimator)
-    meta_model = Ridge(alpha=0.01, max_iter=10000)
-
-    # Define the Stacking Ensemble
-    stacking_model = StackingRegressor(estimators=base_models, final_estimator=meta_model)
-
-    # Add Stacking model to the list of models
-    models["Stacking Ensemble"] = stacking_model
-
-    kf = KFold(n_splits=10, shuffle=True, random_state=77)
-    num_models = len(models)
-
-    models_per_figure = 6
-    model_names = list(models.keys())
-
-    # Store the results for plotting
-    plot_data = []
-    confusion_matrices = []
-    feature_importance = []
-
-    for start in range(0, num_models, models_per_figure):
-        end = min(start + models_per_figure, num_models)
-        subset_models = model_names[start:end]
-
-
-        # Calculates mean for each model and displays
-        for name in subset_models:
-            model = models[name]
-            print(f"\nTraining {name} with 10-Fold Cross-Validation...")
-
-            mse_scores = cross_val_score(model, X_scaled, y, cv=kf, scoring='neg_mean_squared_error')
-            r2_scores = cross_val_score(model, X_scaled, y, cv=kf, scoring='r2')
-
-            mse_scores = -mse_scores
-            rmse_scores = np.sqrt(mse_scores)
-
-            mse_mean = mse_scores.mean()
-            rmse_mean = rmse_scores.mean()
-            r2_mean = r2_scores.mean()
-
-            print(f"{name}:")
-            print(f"  MSE (Mean): {mse_mean:.2f}")
-            print(f"  RMSE (Mean): {rmse_mean:.2f}")
-            print(f"  R2 (Mean): {r2_mean:.2f}")
-
-            y_pred = cross_val_predict(model, X_scaled, y, cv=kf)
-            one_away_acc = one_away_accuracy(y, y_pred)
-            exact_acc = exact_accuracy(y, y_pred)
-
-            # After evaluating performance metrics (e.g., accuracy, MSE, R^2)
-            print(f"  One-Away Accuracy: {one_away_acc:.2f}%")
-            print(f"  Exact Accuracy: {exact_acc:.2f}%")
-
-            # Collect the results for later plotting
-            plot_data.append((name, y, y_pred))
-
-            # Collect confusion matrices for later plotting
-            collect_confusion_matrices(name, y, y_pred, confusion_matrices)
-
-
-            try:
-                model.fit(X_scaled, y)  # Fit the model
-
-                if hasattr(model, "feature_importances_"):  # Tree-based models
-                    importance = model.feature_importances_
-                    feature_importance.append((name, importance))
-                    print(f"Feature importance for {name}: {importance}")
-
-                elif hasattr(model, "coef_"):  # Linear models
-                    importance = np.abs(model.coef_)
-                    if importance.ndim > 1:  # Handle multi-output case
-                        importance = importance.mean(axis=0)
-                    feature_importance.append((name, importance))
-                    print(f"Feature importance (coefficients) collected for {name}")
-
-                else:
-                    print(f"{name} does not have feature importance or coefficients.")
-
-            except Exception as e:
-                print(f"Error fitting model {name}: {e}")
-
-            # Now feature_importance should contain valid data for plotting
-
-            # Now feature_importance will hold the relevant data
-
-            # After all models have been evaluated, plot confusion matrices
-    plot_confusion_matrices(confusion_matrices)
-
-            # Plot feature importance if any model supports it
-    if feature_importance:
-        plot_feature_importance(feature_importance, features)
-
-    for start in range(0, len(plot_data), models_per_figure):
-        end = min(start + models_per_figure, len(plot_data))
-        subset_plot_data = plot_data[start:end]
-
-        # Num of columns per row
-        cols = 3
-        # Ceiling division to get row count
-        rows = -(-len(subset_plot_data) // cols)
-        # Allows for growing number of MLA
-        fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 5))
-        axes = axes.flatten()
-
-        for i, (name, y_true, y_pred) in enumerate(subset_plot_data):
-            # Plot category comparison in the assigned subplot
-            plot_category_comparison(axes[i], y_true, y_pred)
-            axes[i].set_title(name)
-
-        # Hide unused subplots in the last figure
-        for j in range(i + 1, len(axes)):
-            fig.delaxes(axes[j])
-
-        plt.tight_layout()
-        #plt.show()
-        y_preds = {}
-
-        for model_name, model in models.items():
-            y_pred = cross_val_predict(model, X_scaled, y, cv=kf)
-            y_preds[model_name] = y_pred  # Store predictions for each model
-
-        # Example: Returning predictions for a specific model (adjust as needed)
-        y_test = y  # Assuming y_test is just y in cross-validation
-
-
-        return y, y_pred
-
+        return selected_features_per_model
 
 
 # Main program
 def main():
-    dataset = load_dataset()
-    if dataset is not None:
-        features, target_column = auto_select_features_target(dataset)
-        if features and target_column:
-            train_and_evaluate_models(dataset, features, target_column)
+    X_train, X_test, y_train, y_test, features = load_and_prepare_data()
+
+    if X_train is None or X_test is None:
+        print("Exiting due to data loading error.")
+        return
+
+    models = get_models()
+
+    print("\nValidating models with cross-validation...")
+    validate_models(models, X_train, y_train)
+
+    print("\nTesting models on the test set...")
+    test_models(models, X_train, X_test, y_train, y_test, features)
+    # Selecting important features
+    X_train_selected, X_test_selected, selected_features, best_model_name = important_features(
+        models, features, X_train, X_test, y_train, y_test, top_n=20
+    )
+
+    # Print the selected features and the best model
+    print(f"Best model: {best_model_name}")
+    print(f"Selected top features: {selected_features}")
+    # Re-test models with selected features
+    print("\nTesting models on the selected features...")
+    y_test, y_preds, plot_data = test_models(models, X_train_selected, X_test_selected, y_train, y_test,
+                                             selected_features)
+
+    plot_model_results(models, plot_data, plot_category_comparison)
 
 
 if __name__ == "__main__":
