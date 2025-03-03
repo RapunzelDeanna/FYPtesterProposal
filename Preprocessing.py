@@ -55,13 +55,16 @@ for year in years:
 # Convert the dictionary into a DataFrame to display it as a key
 cpi_key_df = pd.DataFrame(list(cpi_values.items()), columns=['Year', 'CPI'])
 
+# keep consistency across datasets
+df.rename(columns={'Release year': 'release_year'}, inplace=True)
+
 # Display the CPI key
 #print(cpi_key_df)
 
 # Function to adjust movie budgets and box office numbers based on CPI
 def adjust_for_inflation(row, base_year=2016):
     # Ensure 'Release year' is an integer
-    release_year = int(row['Release year'])
+    release_year = int(row['release_year'])
 
     # Get the CPI for the release year
     release_year_cpi = cpi.get(release_year)
@@ -78,7 +81,7 @@ def adjust_for_inflation(row, base_year=2016):
     return pd.Series([adjusted_budget, adjusted_box_office])
 
 # Convert 'Release year' to integer if necessary
-df['Release year'] = pd.to_numeric(df['Release year'], errors='coerce', downcast='integer')
+df['release_year'] = pd.to_numeric(df['release_year'], errors='coerce', downcast='integer')
 
 # Apply the function to adjust the budget and box office
 df[['AdjBudget', 'AdjBoxOffice']] = df.apply(adjust_for_inflation, axis=1)
@@ -154,7 +157,7 @@ scaled_dataset = df.copy()
 # Define columns that require Min-Max Scaling
 columns_to_scale = ['Running time', 'Actors Box Office %', 'Director Box Office %',
     'Oscar and Golden Globes nominations', 'Oscar and Golden Globes awards',
-    'Release year', 'IMDb score', 'AdjBudget', 'Director_mean_target',
+    'release_year', 'IMDb score', 'AdjBudget', 'Director_mean_target',
     'Actor 1_mean_target', 'Actor 2_mean_target', 'Actor 3_mean_target'
 ]
 # Initialize the Min-Max Scaler

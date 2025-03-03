@@ -1,4 +1,4 @@
-import cpi
+# import cpi
 import pandas as pd
 from matplotlib import pyplot as plt
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, MultiLabelBinarizer
@@ -7,8 +7,8 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 
 # Takes a while to run so this just checks
 start_time = time.time()
-df = pd.read_csv('Movies1M.csv', encoding='ISO-8859-1')
-df = df.head(2000)
+df = pd.read_csv('TMDB_movie_dataset_v11.csv', encoding='ISO-8859-1')
+
 #removes all adult movies
 df = df[~df['adult']]
 
@@ -20,17 +20,24 @@ df = df[df['status'] == 'Released']
 # production_countries,spoken_languages,keywords,Action,Adventure,Animation,Comedy,Crime,Documentary,Drama,Family,Fantasy,
 # History,Horror,Music,Mystery,Romance,Science Fiction,TV Movie,Thriller,War,Western,release_year,release_month,release_day_of_week,AdjBudget,Adjrevenue
 # dropping irrelevant columns
-features_to_drop = ['status', 'backdrop_path', 'homepage', 'imdb_id', 'original_title', 'overview', 'poster_path', 'tagline', 'adult', 'title', 'production_countries', 'spoken_languages']
+features_to_drop = ['backdrop_path', 'homepage', 'imdb_id', 'original_title', 'overview', 'poster_path', 'tagline', 'adult', 'production_countries', 'spoken_languages']
 df = df.drop(features_to_drop, axis=1)
 
 
 # Checks if there are missing values that could cause issues later on
 missing_values = df.isnull().sum()
-#print(missing_values)
+print(missing_values)
 # drop rows with missing values
 df = df.dropna()
 # check for missing values again to confirm
 missing_values = df.isnull().sum()
+df["revenue"] = pd.to_numeric(df["revenue"], errors="coerce")
+df = df[df["revenue"] != 0]
+
+print(df["revenue"].value_counts())
+df = df[df["budget"] != 0]
+
+print(df["budget"].value_counts())
 
 # Handle multiple genres
 def preprocess_genres(dataframe, genre_column):
@@ -78,50 +85,51 @@ df = df.drop(['release_day_name'], axis=1)
 
 
 
+df = df[(df['release_year'] >= 1913) & (df['release_year'] <= 2024)]
+# min_year = df['release_year'].min()
+# max_year = df['release_year'].max()
 
-
-
-df = df[(df['release_year'] >= 1913) & (df['release_year'] <= 2020)]
-min_year = df['release_year'].min()
-max_year = df['release_year'].max()
-
-# Get movies from the earliest year
-earliest_movies = df[df['release_year'] == min_year]
-# Get movies from the latest year
-latest_movies = df[df['release_year'] == max_year]
-
-print(f"Movies from the earliest year ({min_year}):")
-print(earliest_movies)
-
-print(f"\nMovies from the latest year ({max_year}):")
-print(latest_movies)
-
-# Function to adjust movie budgets, earnings and box office numbers based on CPI
-def adjust_for_inflation(row, base_year=2010):
-    # Ensure 'Release year' is an integer
-    release_year = int(row['release_year'])  # Convert to int if necessary
-
-    # Get the CPI for the release year
-    release_year_cpi = cpi.get(release_year)
-
-    # Get the CPI for the base year (2024)
-    base_year_cpi = cpi.get(base_year)
-
-    # Adjust the budget
-    adjusted_budget = row['budget'] * (base_year_cpi / release_year_cpi)
-
-    # Adjust the revenue
-    adjusted_revenue = row['revenue'] * (base_year_cpi / release_year_cpi)
-
-    return pd.Series([adjusted_budget, adjusted_revenue])
-
-# Convert 'Release year' to integer if necessary
-df['release_year'] = pd.to_numeric(df['release_year'], errors='coerce', downcast='integer')
-
-# Apply the function to adjust the budget, earnings, and box office
-df[['AdjBudget', 'Adjrevenue']] = df.apply(adjust_for_inflation, axis=1)
-df = df.drop(['budget', 'revenue'], axis=1)
+df_sorted = df.sort_values(by="release_year", ascending=False)
+df = df_sorted.head(2000)
 print(df)
+
+# # Get movies from the earliest year
+# earliest_movies = df[df['release_year'] == min_year]
+# # Get movies from the latest year
+# latest_movies = df[df['release_year'] == max_year]
+#
+# print(f"Movies from the earliest year ({min_year}):")
+# print(earliest_movies)
+#
+# print(f"\nMovies from the latest year ({max_year}):")
+# print(latest_movies)
+#
+# # Function to adjust movie budgets, earnings and box office numbers based on CPI
+# def adjust_for_inflation(row, base_year=2020):
+#     # Ensure 'Release year' is an integer
+#     release_year = int(row['release_year'])  # Convert to int if necessary
+#
+#     # Get the CPI for the release year
+#     release_year_cpi = cpi.get(release_year)
+#
+#     # Get the CPI for the base year (2020)
+#     base_year_cpi = cpi.get(base_year)
+#
+#     # Adjust the budget
+#     adjusted_budget = row['budget'] * (base_year_cpi / release_year_cpi)
+#
+#     # Adjust the revenue
+#     adjusted_revenue = row['revenue'] * (base_year_cpi / release_year_cpi)
+#
+#     return pd.Series([adjusted_budget, adjusted_revenue])
+#
+# # Convert 'Release year' to integer if necessary
+# df['release_year'] = pd.to_numeric(df['release_year'], errors='coerce', downcast='integer')
+#
+# # Apply the function to adjust the budget, earnings, and box office
+# df[['AdjBudget', 'Adjrevenue']] = df.apply(adjust_for_inflation, axis=1)
+# df = df.drop(['budget', 'revenue'], axis=1)
+# print(df)
 
 # Converts the original languages into their own feature in boolean form
 label_encoder = LabelEncoder()
@@ -145,9 +153,9 @@ print(language_dict)
 # Split the cast column by ', ' and expand into a new row for each company
 expanded_df = df.assign(production_companies=df['production_companies'].str.split(', ')).explode('production_companies')
 # Aggregate the total revenue by the company
-company_rev = expanded_df.groupby('production_companies')['Adjrevenue'].sum().reset_index()
+company_rev = expanded_df.groupby('production_companies')['revenue'].sum().reset_index()
 # Rename columns for clarity
-company_rev.rename(columns={'production_companies': 'company', 'Adjrevenue': 'company_rev'}, inplace=True)
+company_rev.rename(columns={'production_companies': 'company', 'revenue': 'company_rev'}, inplace=True)
 # Sort by company revenue in descending order
 company_rev = company_rev.sort_values(by='company_rev', ascending=False)
 # Calculate total company_rev for each movie
@@ -158,8 +166,13 @@ movie_company_rev = expanded_df.groupby('id')['company_rev'].sum().reset_index()
 # Merge movie company_rev back to the original DataFrame
 df = df.merge(movie_company_rev, on='id', how='left')
 
+
+top_10_movies = df.sort_values(by="release_year", ascending=False)[["title", "status", "release_year"]].head(10)
+
+print(top_10_movies)
+
 # Drop original feature
-df = df.drop(['original_language', 'production_companies', 'release_date'], axis=1)
+df = df.drop(['original_language', 'production_companies', 'release_date', 'status', 'title'], axis=1)
 
 
 # Function to process multi-word phrases (replaces spaces with underscores)
@@ -195,7 +208,7 @@ print(df.head())
 scaled_dataset = df.copy()
 # Define columns that require Min-Max Scaling
 columns_to_scale = ['vote_average', 'vote_count', 'runtime', 'popularity',
-                    'AdjBudget', 'company_rev', 'Adjrevenue'
+                    'budget', 'company_rev'
 ]
 # Initialize the Min-Max Scaler
 scaler = MinMaxScaler()
@@ -208,10 +221,11 @@ print(scaled_dataset[columns_to_scale].describe())
 df[columns_to_scale] = scaled_dataset[columns_to_scale]
 
 
+print(df.shape)
 
 
 # Preprocessed file is saved as Movies1M.csv
-df.to_csv('Movies1Mscaled.csv', index=False)
+df.to_csv('Movies1Mnew.csv', index=False)
 
 # End timer
 end_time = time.time()
