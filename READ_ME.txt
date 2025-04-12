@@ -1,13 +1,26 @@
-Preprocessed CSV files to use:
-prep_movies.csv (Target Column: AdjBoxOffice)
+Preprocessed CSV files to use (regression):
+prep_movies.csv
+or df2.csv
+or 1Mnewest.csv
+or 1Mfull
 
-TMBD2Norm.csv (Target Column: revenue_adj)(no keywords, runs faster and more reliable atm)
-or df.csv (Target Column: revenue_adj)(includes Keywords)
+Target Column: revenue
 
-Movies1M.csv is a work in progress (Target column: revenue)
-Movies1Msample.csv
+
+Preprocessed CSV files to use (Classification):
+data1class.csv
+df2.csv
+1Mnewclass
+
+Target Column: revenue_class
+
+
+
 
 Run Regression.py and input the preferred dataset and Target Column
+
+
+
 
 
 Output:

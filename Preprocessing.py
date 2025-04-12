@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler
 import cpi
@@ -21,8 +20,8 @@ df["id"] = df.index
 df = df.iloc[:, [-1] + list(range(df.shape[1] - 1))]
 
 # dropping irrelevant columns
-features_to_drop_temp = ['Movie', 'Earnings']
-df = df.drop(features_to_drop_temp, axis=1)
+features_to_drop = ['Movie', 'Earnings', 'id']
+df = df.drop(features_to_drop, axis=1)
 
 # Converts the genres into their own feature in boolean form
 label_encoder = LabelEncoder()
@@ -147,35 +146,56 @@ for actor_col in actor_columns:
 # Display the results
 #print(df[['Director', 'IMDb score', 'Actor 1', 'Actor 2', 'Actor 3', 'Actor 1_mean_target', 'Actor 2_mean_target', 'Actor 3_mean_target']])
 
+
+
+
+# # Copy dataset to avoid modifying the original
+# scaled_dataset = df.copy()
+# # Define columns that require Min-Max Scaling
+# columns_to_scale = ['Running time', 'Actors Box Office %', 'Director Box Office %',
+#     'Oscar and Golden Globes nominations', 'Oscar and Golden Globes awards',
+#     'IMDb score', 'AdjBudget', 'Director_mean_target',
+#     'Actor 1_mean_target', 'Actor 2_mean_target', 'Actor 3_mean_target'
+# ]
+# # Initialize the Min-Max Scaler
+# scaler = MinMaxScaler()
+# # Apply scaling to the selected columns
+# scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
+# # Verify the scaling
+# print(scaled_dataset[columns_to_scale].describe())
+#
+# # Merge scaled values back into the original dataset
+# df[columns_to_scale] = scaled_dataset[columns_to_scale]
+
+
+df = df.rename(columns={'AdjBoxOffice': 'revenue'})
+print(df['revenue'].describe())
+print(df['revenue'].quantile([0.2, 0.4, 0.6, 0.8, 1.0]))
+
+def categorize_box_office(value):
+    if value < 5e6: # <$5M
+        return 0  # Flop
+    elif value < 30e6:# $5M - $30M
+        return 1  # Below Average
+    elif value < 100e6: # $30M - $100M
+        return 2  # Average
+    elif value < 300e6:# $100M - $300M
+        return 3  # Hit
+    else: # >$300M
+        return 4  # Blockbuster
+
+
+df['revenue_class'] = df['revenue'].apply(categorize_box_office)
+
+
 # Drop the old features
-df = df.drop(['Director', 'Actor 1', 'Actor 2', 'Actor 3'], axis=1)
-
-
-
-# Copy dataset to avoid modifying the original
-scaled_dataset = df.copy()
-# Define columns that require Min-Max Scaling
-columns_to_scale = ['Running time', 'Actors Box Office %', 'Director Box Office %',
-    'Oscar and Golden Globes nominations', 'Oscar and Golden Globes awards',
-    'release_year', 'IMDb score', 'AdjBudget', 'Director_mean_target',
-    'Actor 1_mean_target', 'Actor 2_mean_target', 'Actor 3_mean_target'
-]
-# Initialize the Min-Max Scaler
-scaler = MinMaxScaler()
-# Apply scaling to the selected columns
-scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
-# Verify the scaling
-print(scaled_dataset[columns_to_scale].describe())
-
-# Merge scaled values back into the original dataset
-df[columns_to_scale] = scaled_dataset[columns_to_scale]
-
+df = df.drop(['Director', 'Actor 1', 'Actor 2', 'Actor 3', 'revenue'], axis=1)
 
 
 print(df)
 
 #Preprocessed data is saved to the prep_movies.csv file
-df.to_csv('prep_movies.csv', index=False)
+df.to_csv('dataset1class.csv', index=False)
 # End timer
 end_time = time.time()
 

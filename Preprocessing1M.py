@@ -11,7 +11,8 @@ df = pd.read_csv('TMDB_movie_dataset_v11.csv', encoding='ISO-8859-1')
 
 #removes all adult movies
 df = df[~df['adult']]
-
+df = df[~((df["vote_average"] == 0) & (df["vote_count"] == 0))]
+df = df[~((df["revenue"] == 1))]
 status_counts_before = df['status'].value_counts()
 print("Status counts before filtering:\n", status_counts_before, "\n")
 
@@ -103,7 +104,7 @@ print(df)
 #
 # print(f"\nMovies from the latest year ({max_year}):")
 # print(latest_movies)
-#
+
 # # Function to adjust movie budgets, earnings and box office numbers based on CPI
 # def adjust_for_inflation(row, base_year=2020):
 #     # Ensure 'Release year' is an integer
@@ -129,14 +130,16 @@ print(df)
 # # Apply the function to adjust the budget, earnings, and box office
 # df[['AdjBudget', 'Adjrevenue']] = df.apply(adjust_for_inflation, axis=1)
 # df = df.drop(['budget', 'revenue'], axis=1)
-# print(df)
-
+# df = df.rename(columns={'Adjrevenue': 'revenue'})
+# df = df.rename(columns={'AdjBudget': 'budget'})
 # Converts the original languages into their own feature in boolean form
 label_encoder = LabelEncoder()
 df['lang_encoded'] = label_encoder.fit_transform(df['original_language'])
 columns_to_view = ['original_language', 'lang_encoded']
 df_copy = df[columns_to_view].copy()
-print(df_copy)
+
+
+
 
 # Create a mapping of each category to its encoded value
 category_mapping = pd.DataFrame({
@@ -171,27 +174,42 @@ top_10_movies = df.sort_values(by="release_year", ascending=False)[["title", "st
 
 print(top_10_movies)
 
-# Drop original feature
-df = df.drop(['original_language', 'production_companies', 'release_date', 'status', 'title'], axis=1)
 
 
 # Function to process multi-word phrases (replaces spaces with underscores)
 def process_keywords(keywords):
+    if pd.isna(keywords):  # Handle NaN values
+        return []
+
     # Split the keywords by commas
     keyword_list = keywords.split(", ")
 
-    # Replace spaces in multi-word phrases with "_"
-    keyword_list = [kw.replace(" ", "_") for kw in keyword_list]
+    processed_keywords = []
+    for kw in keyword_list:
+        kw = kw.encode("utf-8", "ignore").decode("utf-8")  # Remove non-UTF characters
+        kw = kw.encode("ascii", "ignore").decode("ascii")  # Remove non-ASCII characters
+        # kw = kw.lower()  # Convert to lowercase
+        kw = "".join(c if c.isalnum() or c.isspace() else " " for c in kw)  # Remove special chars
+        kw = kw.replace(" ", "_")  # Replace spaces in multi-word phrases with "_"
+        processed_keywords.append(kw)
 
-    return " ".join(keyword_list)
+
+
+    return processed_keywords
+
 
 
 # Apply the function to the keywords column
+# Process keywords column
 df["keywords"] = df["keywords"].apply(process_keywords)
 
+# Convert list of keywords into a single string per row
+df["keywords"] = df["keywords"].apply(lambda x: " ".join(x))
+df = df.reset_index(drop=True)
+
 # Apply TF-IDF transformation
-tfidf = TfidfVectorizer(max_features=500, stop_words="english",
-                        token_pattern=r"\b\w+\b")  # token_pattern ensures that words are captured properly
+tfidf = TfidfVectorizer(max_features=100, stop_words="english",
+                        analyzer="word")  # token_pattern ensures that words are captured properly
 tfidf_matrix = tfidf.fit_transform(df["keywords"])
 
 # Convert TF-IDF matrix to DataFrame
@@ -203,29 +221,52 @@ df = pd.concat([df.drop(columns=["keywords"]), tfidf_df], axis=1)  # Drop origin
 # Show completion message and new shape
 print("TF-IDF preprocessing completed. New shape:", df.shape)
 print(df.head())
-
-# Copy dataset to avoid modifying the original
-scaled_dataset = df.copy()
-# Define columns that require Min-Max Scaling
-columns_to_scale = ['vote_average', 'vote_count', 'runtime', 'popularity',
-                    'budget', 'company_rev'
-]
-# Initialize the Min-Max Scaler
-scaler = MinMaxScaler()
-# Apply scaling to the selected columns
-scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
-# Verify the scaling
-print(scaled_dataset[columns_to_scale].describe())
-
-# Merge scaled values back into the original dataset
-df[columns_to_scale] = scaled_dataset[columns_to_scale]
-
-
+print(df.head(10))
 print(df.shape)
+print(df['revenue'].describe())
+print(df['revenue'].quantile([0.2, 0.4, 0.6, 0.8, 1.0]))
+
+def categorize_box_office(value):
+    if value < 1e6:  # < $1M
+        return 0
+    elif value < 6e6:  # $1M - $6M
+        return 1
+    elif value < 30e6:  # $6M - $30M
+        return 2
+    elif value < 100e6:  # $30M - $100M
+        return 3
+    else:  # > $100M
+        return 4
+
+df['revenue_class'] = df['revenue'].apply(categorize_box_office)
+
+
+# Drop original feature
+df = df.drop(['original_language', 'production_companies', 'release_date', 'status', 'title', 'id', 'revenue'], axis=1)
+
+
+
+
+
+# # Copy dataset to avoid modifying the original
+# scaled_dataset = df.copy()
+# # Define columns that require Min-Max Scaling
+# columns_to_scale = ['vote_average', 'vote_count', 'runtime', 'popularity',
+#                     'budget', 'company_rev'
+# ]
+# # Initialize the Min-Max Scaler
+# scaler = MinMaxScaler()
+# # Apply scaling to the selected columns
+# scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
+# # Verify the scaling
+# print(scaled_dataset[columns_to_scale].describe())
+#
+# # Merge scaled values back into the original dataset
+# df[columns_to_scale] = scaled_dataset[columns_to_scale]
 
 
 # Preprocessed file is saved as Movies1M.csv
-df.to_csv('Movies1Mnew.csv', index=False)
+df.to_csv('dataset3class.csv', index=False)
 
 # End timer
 end_time = time.time()

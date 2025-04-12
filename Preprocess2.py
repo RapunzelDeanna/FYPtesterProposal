@@ -126,7 +126,7 @@ def process_keywords(keywords):
 df["keywords"] = df["keywords"].apply(process_keywords)
 
 # Apply TF-IDF transformation
-tfidf = TfidfVectorizer(max_features=500, stop_words="english",
+tfidf = TfidfVectorizer(max_features=100, stop_words="english",
                         token_pattern=r"\b\w+\b")  # token_pattern ensures that words are captured properly
 tfidf_matrix = tfidf.fit_transform(df["keywords"])
 
@@ -141,23 +141,39 @@ print("TF-IDF preprocessing completed. New shape:", df.shape)
 print(df.head())
 
 
-# Copy dataset to avoid modifying the original
-scaled_dataset = df.copy()
-# Define columns that require Min-Max Scaling
-columns_to_scale = [
-    'popularity', 'runtime', 'vote_count',
-    'budget_adj', 'popularity_encoded', 'star_power', 'director_power'
-]
-# Initialize the Min-Max Scaler
-scaler = MinMaxScaler()
-# Apply scaling to the selected columns
-scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
-# Verify the scaling
-print(scaled_dataset[columns_to_scale].describe())
-# Merge scaled values back into the original dataset
-df[columns_to_scale] = scaled_dataset[columns_to_scale]
+# # Copy dataset to avoid modifying the original
+# scaled_dataset = df.copy()
+# # Define columns that require Min-Max Scaling
+# columns_to_scale = [
+#     'popularity', 'runtime', 'vote_count',
+#     'budget_adj', 'popularity_encoded', 'star_power', 'director_power'
+# ]
+# # Initialize the Min-Max Scaler
+# scaler = MinMaxScaler()
+# # Apply scaling to the selected columns
+# scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
+# # Verify the scaling
+# print(scaled_dataset[columns_to_scale].describe())
+# # Merge scaled values back into the original dataset
+# df[columns_to_scale] = scaled_dataset[columns_to_scale]
 
+df = df.rename(columns={'revenue_adj': 'revenue'})
+print(df['revenue'].describe())
+print(df['revenue'].quantile([0.2, 0.4, 0.6, 0.8, 1.0]))
 
+def categorize_box_office(value):
+    if value < 30e6: # <$30M
+        return 0
+    elif value < 120e6: # $30M - $120M
+        return 1
+    elif value < 240e6: # $120M - $240M
+        return 2
+    elif value < 550e6: # $240M - $550M
+        return 3
+    else:
+        return 4 # > $550M
+
+df['revenue_class'] = df['revenue'].apply(categorize_box_office)
 # End timer
 end_time = time.time()
 
@@ -177,10 +193,10 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.tight_layout()
 #plt.show()
 
-df = df.drop(['popularity_level', 'release_date', 'release_day_name', 'cast', 'director'], axis=1)
+df = df.drop(['popularity_level', 'release_date', 'release_day_name', 'cast', 'director', 'id', 'revenue'], axis=1)
 
-#Preprocessed data is saved to the df.csv file (for faster testing purposes)
-df.to_csv('df.csv', index=False)
+#Preprocessed data is saved to a file (for faster testing purposes)
+df.to_csv('dataset2class.csv', index=False)
 
 
 

@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-from sklearn.model_selection import KFold, cross_val_score, cross_val_predict
+from sklearn.model_selection import KFold, cross_val_score, cross_val_predict, GridSearchCV
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
 from sklearn.svm import SVR
@@ -20,38 +20,10 @@ import seaborn as sns
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
+import time
 
-
-# # Load dataset, preprocess, and split into train/test sets
-# def load_and_prepare_data():
-#     ds_name = input("Enter the dataset name (without .csv): ")
-#
-#     try:
-#         dataset = pd.read_csv(ds_name + '.csv')
-#         print(f"Dataset '{ds_name}' loaded successfully.")
-#         print(f"Shape: {dataset.shape}")
-#
-#         # User selects target column
-#         print("\nAvailable columns:", dataset.columns.tolist())
-#         target_column = input("Enter the target column name: ")
-#
-#         if target_column not in dataset.columns:
-#             print(f"Error: '{target_column}' not found in dataset.")
-#             return None, None, None, None
-#
-#         features = [col for col in dataset.columns if col != target_column]
-#
-#         X = dataset[features].values
-#         y = dataset[target_column].values
-#
-#         # Standardize features
-#         scaler = StandardScaler()
-#         X_scaled = scaler.fit_transform(X)
-#
-#         # Train-Test Split (80% Train, 20% Test)
-#         X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=77)
-#
-#         return X_train, X_test, y_train, y_test, features
+# Takes a while with cpi so just checking
+start_time = time.time()
 
 def load_and_prepare_data():
     ds_name = input("Enter the dataset name (without .csv): ")
@@ -96,13 +68,11 @@ def load_and_prepare_data():
         X_train_scaled = scaler.fit_transform(X_train)
         X_test_scaled = scaler.transform(X_test)
 
-        return X_train_scaled, X_test_scaled, y_train, y_test, features
-
-
+        return X_train_scaled, X_test_scaled, y_train, y_test, features, ds_name
 
     except FileNotFoundError:
         print(f"Error: The file {ds_name}.csv was not found.")
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
 
 # Automatically select features and target column based on user input
@@ -126,48 +96,221 @@ def auto_select_features_target(dataset):
     print(f"Target column selected: {target_column}")
     return features, target_column
 
-def get_models():
-    # List of all machine learning algorithms used
-    models = {
-        "Linear Regression": LinearRegression(),
-        "Ridge Regression": Ridge(alpha=0.01, max_iter=10000),
-        "Lasso Regression": Lasso(alpha=0.01, max_iter=10000),
-        "ElasticNet": ElasticNet(alpha=0.01, l1_ratio=0.5),
-        "Decision Tree": DecisionTreeRegressor(random_state=77),
-        "Random Forest": RandomForestRegressor(n_estimators=100, random_state=77, verbose=0),
-        "Extra Trees": ExtraTreesRegressor(n_estimators=100, random_state=77),
-        "Gradient Boosting": GradientBoostingRegressor(n_estimators=100, random_state=77),
-        "AdaBoost": AdaBoostRegressor(n_estimators=100, random_state=77),
-        "XGBoost": XGBRegressor(n_estimators=100, random_state=77),
-        "LightGBM": LGBMRegressor(n_estimators=100, random_state=77, verbose=0),
-        "CatBoost": CatBoostRegressor(iterations=100, random_state=77, verbose=0),
-        "SVR (RBF Kernel)": SVR(kernel="rbf"),
-        "SVR (Linear Kernel)": SVR(kernel="linear"),
-        "KNN": KNeighborsRegressor(n_neighbors=5),
-        #Current issue with this algorithm (WIP)
-        #"MLP (Neural Network)": MLPRegressor(hidden_layer_sizes=(64, 32), activation='relu', solver='adam',
-                                             #max_iter=2000, random_state=42, learning_rate_init=0.001, n_iter_no_change=10)
+from sklearn.linear_model import Ridge, Lasso, ElasticNet, LinearRegression
+from sklearn.tree import DecisionTreeRegressor
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor, AdaBoostRegressor
+from sklearn.svm import SVR
+from sklearn.neighbors import KNeighborsRegressor
+from xgboost import XGBRegressor
+from lightgbm import LGBMRegressor
+from catboost import CatBoostRegressor
+from sklearn.model_selection import GridSearchCV
+
+def tune_linear_regression(X_train, y_train):
+    print("\nTuning Linear Regression (no hyperparameters)")
+    return LinearRegression()
+
+def tune_ridge(X_train, y_train):
+    print("\nTuning Ridge Hyperparameters")
+    param_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10]}
+    model = Ridge(max_iter=10000)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best Ridge Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_lasso(X_train, y_train):
+    print("\nTuning Lasso Hyperparameters")
+    param_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10]}
+    model = Lasso(max_iter=10000)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best Lasso Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_elasticnet(X_train, y_train):
+    print("\nTuning ElasticNet Hyperparameters")
+    param_grid = {
+        'alpha': [0.001, 0.01, 0.1, 1],
+        'l1_ratio': [0.1, 0.5, 0.9]
     }
+    model = ElasticNet()
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best ElasticNet Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
 
+def tune_decision_tree(X_train, y_train):
+    print("\nTuning Decision Tree Hyperparameters")
+    param_grid = {
+        'max_depth': [None, 5, 10, 20],
+        'min_samples_split': [2, 5, 10]
+    }
+    model = DecisionTreeRegressor(random_state=77)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best Decision Tree Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
 
-    # # Define base models for stacking
-    # base_models = [
-    #      ("xgb", XGBRegressor(n_estimators=100, random_state=77)),
-    #      ("lgbm", LGBMRegressor(n_estimators=100, random_state=77, verbose=0)),
-    #      ("cat", CatBoostRegressor(iterations=100, random_state=77, verbose=0)),
-    #      ("gbdt", GradientBoostingRegressor(n_estimators=100, random_state=77)),
-    #      ("rf", RandomForestRegressor(n_estimators=100, random_state=77)),
-    #      ("svr", SVR(kernel="rbf"))
-    # ]
-    #
-    # # Define the meta-model (final estimator)
-    # meta_model = Ridge(alpha=0.01, max_iter=10000)
-    #
-    # # Define the Stacking Ensemble
-    # stacking_model = StackingRegressor(estimators=base_models, final_estimator=meta_model)
-    #
-    # # Add Stacking model to the list of models
-    # models["Stacking Ensemble"] = stacking_model
+def tune_random_forest(X_train, y_train):
+    print("\nTuning Random Forest Hyperparameters")
+    param_grid = {
+        'n_estimators': [100, 200],
+        'max_depth': [None, 10, 20]
+    }
+    model = RandomForestRegressor(random_state=77)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best Random Forest Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_extra_trees(X_train, y_train):
+    print("\nTuning Extra Trees Hyperparameters")
+    param_grid = {
+        'n_estimators': [100, 200],
+        'max_depth': [None, 10, 20]
+    }
+    model = ExtraTreesRegressor(random_state=77)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best Extra Trees Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_gradient_boosting(X_train, y_train):
+    print("\nTuning Gradient Boosting Hyperparameters")
+    param_grid = {
+        'n_estimators': [100, 200],
+        'learning_rate': [0.01, 0.1, 0.2],
+        'max_depth': [3, 5, 10]
+    }
+    model = GradientBoostingRegressor(random_state=77)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best Gradient Boosting Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_adaboost(X_train, y_train):
+    print("\nTuning AdaBoost Hyperparameters")
+    param_grid = {
+        'n_estimators': [50, 100, 200],
+        'learning_rate': [0.01, 0.1, 1.0]
+    }
+    model = AdaBoostRegressor(random_state=77)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best AdaBoost Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_xgboost(X_train, y_train):
+    print("\nTuning XGBoost Hyperparameters")
+    param_grid = {
+        'n_estimators': [100, 200],
+        'learning_rate': [0.01, 0.1],
+        'max_depth': [3, 5]
+    }
+    model = XGBRegressor(random_state=77, verbosity=0)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best XGBoost Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_lightgbm(X_train, y_train):
+    print("\nTuning LightGBM Hyperparameters")
+    param_grid = {
+        'n_estimators': [100, 200],
+        'learning_rate': [0.01, 0.1],
+        'num_leaves': [31, 64]
+    }
+    model = LGBMRegressor(random_state=77, verbose=-1)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best LightGBM Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_catboost(X_train, y_train):
+    print("\nTuning CatBoost Hyperparameters")
+    param_grid = {
+        'iterations': [100, 200],
+        'learning_rate': [0.01, 0.1],
+        'depth': [4, 6, 8]
+    }
+    model = CatBoostRegressor(random_state=77, verbose=0)
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best CatBoost Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_svr_rbf(X_train, y_train):
+    print("\nTuning SVR (RBF Kernel) Hyperparameters")
+    param_grid = {
+        'C': [0.1, 1, 10],
+        'gamma': ['scale', 'auto']
+    }
+    model = SVR(kernel='rbf')
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best SVR (RBF) Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_svr_linear(X_train, y_train):
+    print("\nTuning SVR (Linear Kernel) Hyperparameters")
+    param_grid = {
+        'C': [0.1, 1, 10]
+    }
+    model = SVR(kernel='linear')
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best SVR (Linear) Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def tune_knn(X_train, y_train):
+    print("\nTuning KNN Hyperparameters")
+    param_grid = {
+        'n_neighbors': [3, 5, 7, 9]
+    }
+    model = KNeighborsRegressor()
+    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
+    grid_search.fit(X_train, y_train)
+    print(f"Best KNN Parameters: {grid_search.best_params_}")
+    return grid_search.best_estimator_
+
+def get_models(X_train, y_train):
+    models = {
+        "Linear Regression": tune_linear_regression(X_train, y_train),
+        "Ridge Regression": tune_ridge(X_train, y_train),
+        "Lasso Regression": tune_lasso(X_train, y_train),
+        "ElasticNet": tune_elasticnet(X_train, y_train),
+        "Decision Tree": tune_decision_tree(X_train, y_train),
+        "Random Forest": tune_random_forest(X_train, y_train),
+        "Extra Trees": tune_extra_trees(X_train, y_train),
+        "Gradient Boosting": tune_gradient_boosting(X_train, y_train),
+        "AdaBoost": tune_adaboost(X_train, y_train),
+        "XGBoost": tune_xgboost(X_train, y_train),
+        "LightGBM": tune_lightgbm(X_train, y_train),
+        "CatBoost": tune_catboost(X_train, y_train),
+        "SVR (RBF Kernel)": tune_svr_rbf(X_train, y_train),
+        "SVR (Linear Kernel)": tune_svr_linear(X_train, y_train),
+        "KNN": tune_knn(X_train, y_train),
+        }
+
+    # Define base models for stacking
+    base_models = [
+         ("xgb", XGBRegressor(n_estimators=100, random_state=77)),
+         ("lgbm", LGBMRegressor(n_estimators=100, random_state=77, verbose=0)),
+         ("cat", CatBoostRegressor(iterations=100, random_state=77, verbose=0)),
+         ("gbdt", GradientBoostingRegressor(n_estimators=100, random_state=77)),
+         ("rf", RandomForestRegressor(n_estimators=100, random_state=77)),
+         ("svr", SVR(kernel="rbf"))
+    ]
+
+    # Define the meta-model (final estimator)
+    meta_model = Ridge(alpha=0.01, max_iter=10000)
+
+    # Define the Stacking Ensemble
+    stacking_model = StackingRegressor(estimators=base_models, final_estimator=meta_model)
+
+    # Add Stacking model to the list of models
+    models["Stacking Ensemble"] = stacking_model
 
     return models
 
@@ -188,7 +331,7 @@ def validate_models(models, X_train, y_train, cv_splits=10):
         print(f"  R2: {r2_scores.mean():.2f}")
 
 
-def test_models(models, X_train, X_test, y_train, y_test, features):
+def test_models(ds_name, models, X_train, X_test, y_train, y_test, features):
     # Store the results for plotting
     plot_data = []
     confusion_matrices = []
@@ -238,11 +381,11 @@ def test_models(models, X_train, X_test, y_train, y_test, features):
             print(f"{name} does not have feature importance or coefficients.")
 
             # After all models have been evaluated, plot confusion matrices
-    plot_confusion_matrices(confusion_matrices)
+    plot_confusion_matrices(confusion_matrices, ds_name)
 
             # Plot feature importance if any model supports it
     if feature_importance:
-        plot_feature_importance(feature_importance, features)
+        plot_feature_importance(feature_importance, features, ds_name)
 
     return y_test, y_preds, plot_data  # Return test results
 
@@ -328,29 +471,6 @@ def categorize_box_office(value):
         else:
             return "Blockbuster"
 
-    # elif value < 1:
-    #     if value < 0.2:
-    #         return "Flop"
-    #     elif value < 0.4:
-    #         return "Below Average"
-    #     elif value < 0.6:
-    #         return "Average"
-    #     elif value < 0.8:
-    #         return "Hit"
-    #     else:
-    #         return "Blockbuster"
-# def categorize_box_office(value):
-#     percentiles = np.percentile([20, 40, 60, 80])  # Get dataset-specific thresholds
-#     if value < percentiles[0]:
-#         return "Flop"
-#     elif value < percentiles[1]:
-#         return "Below Average"
-#     elif value < percentiles[2]:
-#         return "Average"
-#     elif value < percentiles[3]:
-#         return "Hit"
-#     else:
-#         return "Blockbuster"
 
 # Calculate one-away accuracy
 def one_away_accuracy(y_true, y_pred):
@@ -380,65 +500,6 @@ def exact_accuracy(y_true, y_pred):
 
     return correct / len(y_true) * 100
 
-# # Plot category comparison
-# def plot_category_comparison(ax, y_true, y_pred):
-#     print(f"y_true: {y_true[:5]}, y_pred: {y_pred[:5]}")
-#     true_categories = [categorize_box_office(value) for value in y_true]
-#     pred_categories = [categorize_box_office(value) for value in y_pred]
-#
-#     category_order = ['Flop', 'Below Average', 'Average', 'Hit', 'Blockbuster']
-#     true_counts = pd.Series(true_categories).value_counts().reindex(category_order, fill_value=0)
-#     pred_counts = pd.Series(pred_categories).value_counts().reindex(category_order, fill_value=0)
-#     print(f"Mapped true categories: {true_categories[:5]}")
-#     print(f"Mapped predicted categories: {pred_categories[:5]}")
-#
-#     x = np.arange(len(category_order))
-#
-#     ax.bar(x - 0.2, true_counts, width=0.4, label='Actual', alpha=0.75)
-#     ax.bar(x + 0.2, pred_counts, width=0.4, label='Predicted', alpha=0.75)
-#
-#     ax.set_title('Actual vs Predicted Categories')
-#     ax.set_xlabel('Category')
-#     ax.set_ylabel('Count')
-#     ax.set_xticks(x)
-#     ax.set_xticklabels(category_order)
-#     ax.legend()
-#
-# def plot_model_results(models, plot_data, plot_category_comparison):
-#     num_models = len(models)
-#     models_per_figure = 6
-#     model_names = list(models.keys())
-#     print(f"Number of models: {len(models)}")
-#     print(f"Plot data length: {len(plot_data)}")
-#     print(f"Sample plot_data: {plot_data[:2]}")  # Show a sample of the data
-#
-#     for start in range(0, num_models, models_per_figure):
-#         end = min(start + models_per_figure, num_models)
-#         subset_models = model_names[start:end]
-#     for start in range(0, len(plot_data), models_per_figure):
-#         end = min(start + models_per_figure, len(plot_data))
-#         subset_plot_data = plot_data[start:end]
-#
-#         # Num of columns per row
-#         cols = 3
-#         # Ceiling division to get row count
-#         rows = -(-len(subset_plot_data) // cols)
-#         # Allows for growing number of MLA
-#         fig, axes = plt.subplots(rows, cols, figsize=(cols * 5, rows * 5))
-#         axes = axes.flatten()
-#
-#         for i, (name, y_true, y_pred) in enumerate(subset_plot_data):
-#             # Plot category comparison in the assigned subplot
-#             plot_category_comparison(axes[i], y_true, y_pred)
-#             axes[i].set_title(name)
-#
-#         # Hide unused subplots in the last figure
-#         for j in range(i + 1, len(axes)):
-#             fig.delaxes(axes[j])
-#
-#         plt.tight_layout()
-#         plt.show()
-
 
 
 # Store confusion matrices for all models
@@ -452,7 +513,7 @@ def collect_confusion_matrices(name, y_true, y_pred, confusion_matrices):
     cm = confusion_matrix(y_true_encoded, y_pred_encoded)
     confusion_matrices.append((name, cm))  # Store model name and its confusion matrix
 
-def plot_confusion_matrices(confusion_matrices):
+def plot_confusion_matrices(confusion_matrices, ds_name):
     num_models = len(confusion_matrices)
     models_per_figure = 6  # Each figure should contain at most 6 confusion matrices
     cols = 3  # 3 columns per row
@@ -477,10 +538,12 @@ def plot_confusion_matrices(confusion_matrices):
             fig.delaxes(axes[j])
 
         plt.tight_layout()
-        # plt.show()
+        plt.savefig(f'{ds_name}_confusion_matrices_{start // models_per_figure}.png',
+                    bbox_inches='tight', dpi=300)
+        plt.close()
 
 
-def plot_feature_importance(feature_importance, feature_names):
+def plot_feature_importance(feature_importance, feature_names, ds_name):
     """Plot feature importance for models that support it in a 3x2 grid (6 models per figure)."""
     selected_features_per_model = {}
     models_per_figure = 6  # Maximum number of models per figure
@@ -510,26 +573,28 @@ def plot_feature_importance(feature_importance, feature_names):
             fig.delaxes(axes[j])
 
         plt.tight_layout()
-        # plt.show()
+        plt.savefig(f'{ds_name}_feature_importance_{start // models_per_figure}.png',
+                    bbox_inches='tight', dpi=300)
+        plt.close()
 
         return selected_features_per_model
 
 
 # Main program
 def main():
-    X_train, X_test, y_train, y_test, features = load_and_prepare_data()
+    X_train, X_test, y_train, y_test, features, ds_name = load_and_prepare_data()
 
     if X_train is None or X_test is None:
         print("Exiting due to data loading error.")
         return
 
-    models = get_models()
+    models = get_models(X_train, y_train)
 
     print("\nValidating models with cross-validation...")
     validate_models(models, X_train, y_train)
 
     print("\nTesting models on the test set...")
-    test_models(models, X_train, X_test, y_train, y_test, features)
+    test_models(ds_name, models, X_train, X_test, y_train, y_test, features)
     # Selecting important features
     X_train_selected, X_test_selected, selected_features, best_model_name = important_features(
         models, features, X_train, X_test, y_train, y_test, top_n=20
@@ -540,8 +605,14 @@ def main():
     print(f"Selected top features: {selected_features}")
     # Re-test models with selected features
     print("\nTesting models on the selected features...")
-    y_test, y_preds, plot_data = test_models(models, X_train_selected, X_test_selected, y_train, y_test,
+    y_test, y_preds, plot_data = test_models(ds_name, models, X_train_selected, X_test_selected, y_train, y_test,
                                              selected_features)
+    # End timer
+    end_time = time.time()
+
+    # Calculate time taken
+    elapsed_time = end_time - start_time
+    print("Time taken: ", elapsed_time)
 
     # plot_model_results(models, plot_data, plot_category_comparison)
 
