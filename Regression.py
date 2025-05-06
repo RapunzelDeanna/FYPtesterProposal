@@ -1,3 +1,8 @@
+# © 2025 Deanna White. All rights reserved.
+#  COMP1682 Final Year Project
+# Purpose: Regression prediction for box office revenue
+
+
 import time
 import numpy as np
 import pandas as pd
@@ -20,6 +25,18 @@ from xgboost import XGBRegressor
 start_time = time.time()
 
 def load_and_prepare_data():
+    """
+        Load and prepare dataset for machine learning analysis.
+
+        This function handles:
+        - Dataset loading from CSV
+        - Target column selection
+        - Time-based data splitting
+        - Feature scaling
+
+        Returns:
+            X_train_scaled, X_test_scaled, y_train, y_test, features, ds_name
+    """
     ds_name = input("Enter the dataset name (without .csv): ")
 
     try:
@@ -74,6 +91,15 @@ def load_and_prepare_data():
 
 # Automatically select features and target column based on user input
 def auto_select_features_target(dataset):
+    """
+        Automatically select features and target column based on user input.
+
+        Parameters:
+            dataset: Loaded pandas DataFrame
+
+        Returns:
+            tuple: (features, target_column) or (None, None) if selection fails
+    """
     target_column = input("Enter the target column name: ").strip()
 
     # Check if target column exists in the dataset
@@ -95,6 +121,16 @@ def auto_select_features_target(dataset):
 
 # Hyperparameter Tuning
 def tune_ridge(X_train, y_train):
+    """
+        Tune Ridge Regression hyperparameters using GridSearchCV.
+
+        Parameters:
+            X_train: Training features
+            y_train: Training target
+
+        Returns:
+            Ridge: Best performing Ridge model
+    """
     print("\nTuning Ridge Hyperparameters")
     param_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10]}
     model = Ridge(max_iter=10000)
@@ -249,6 +285,12 @@ def tune_knn(X_train, y_train):
     return grid_search.best_estimator_
 
 def get_models(X_train, y_train):
+    """
+        Initialize and tune multiple regression models.
+
+        Returns:
+            dict: Dictionary of tuned models with their names as keys
+    """
     models = {
         "Linear Regression": LinearRegression(),
         "Ridge Regression": tune_ridge(X_train, y_train),
@@ -288,6 +330,15 @@ def get_models(X_train, y_train):
     return models
 
 def validate_models(models, X_train, y_train, cv_splits=10):
+    """
+        Validate models using KFold cross-validation.
+
+        Parameters:
+            models: Dictionary of models to validate
+            X_train: Training features
+            y_train: Training target
+            cv_splits: Number of cross-validation folds
+    """
     kf = KFold(n_splits=cv_splits, shuffle=True, random_state=77)
         # Calculates mean for each model and displays
     for name, model in models.items():
@@ -305,6 +356,18 @@ def validate_models(models, X_train, y_train, cv_splits=10):
 
 
 def test_models(ds_name, models, X_train, X_test, y_train, y_test, features):
+    """
+       Test models on the test set and generate visualizations.
+
+       Parameters:
+           ds_name: Dataset name for output files
+           models: Dictionary of models to test
+           X_train: Training features
+           X_test: Test features
+           y_train: Training target
+           y_test: Test target
+           features: List of feature names
+    """
     # Store the results for plotting
     plot_data = []
     confusion_matrices = []
@@ -364,6 +427,22 @@ def test_models(ds_name, models, X_train, X_test, y_train, y_test, features):
 
 
 def important_features(ds_name, models, features, X_train, X_test, y_train, y_test, top_n=20):
+    """
+        Analyze feature importance across models and select top features.
+
+        Parameters:
+            ds_name: Dataset name for output files
+            models: Dictionary of trained models
+            features: List of feature names
+            X_train: Training features
+            X_test: Test features
+            y_train: Training target
+            y_test: Test target
+            top_n: Number of top features to select (default: 20)
+
+        Returns:
+            tuple: (X_train_selected, X_test_selected, selected_features, best_model_name)
+    """
     feature_importance = {}
     model_performance = {}
 
@@ -440,7 +519,16 @@ def important_features(ds_name, models, features, X_train, X_test, y_train, y_te
 
 # Categorize the predicted and actual values into categories
 def categorize_box_office(value):
-    # if value > 1:
+    """
+        Categorize box office performance into predefined categories.
+
+        Parameters:
+            value: float - Box office revenue value
+
+        Returns:
+            str: Category name ('Flop', 'Below Average', 'Average', 'Hit', or 'Blockbuster')
+    """
+    if value > 1:
         if value < 1e6:
             return "Flop"
         elif value < 5e6:
@@ -455,6 +543,19 @@ def categorize_box_office(value):
 
 # Calculate one-away accuracy
 def one_away_accuracy(y_true, y_pred):
+    """
+        Calculate one-away accuracy for box office predictions.
+        A prediction is considered "one-away" if it's either:
+        1. Exactly correct
+        2. One category higher or lower than the true category
+
+        Parameters:
+            y_true: array-like - True box office values
+            y_pred: array-like - Predicted box office values
+
+        Returns:
+            float: Percentage of predictions that are either correct or one category away
+    """
     true_categories = [categorize_box_office(value) for value in y_true]
     pred_categories = [categorize_box_office(value) for value in y_pred]
 
@@ -470,6 +571,17 @@ def one_away_accuracy(y_true, y_pred):
 
 # Calculate exact accuracy
 def exact_accuracy(y_true, y_pred):
+    """
+        Calculate exact accuracy for box office predictions.
+        A prediction is considered correct only if it matches the true category exactly.
+
+        Parameters:
+            y_true: array-like - True box office values
+            y_pred: array-like - Predicted box office values
+
+        Returns:
+            float: Percentage of exactly correct predictions
+    """
     true_categories = [categorize_box_office(value) for value in y_true]
     pred_categories = [categorize_box_office(value) for value in y_pred]
 
@@ -485,6 +597,15 @@ def exact_accuracy(y_true, y_pred):
 
 # Store confusion matrices for all models
 def collect_confusion_matrices(name, y_true, y_pred, confusion_matrices):
+    """
+        Store confusion matrices for model evaluation.
+
+        Parameters:
+            name: str - Model name
+            y_true: array-like - True box office values
+            y_pred: array-like - Predicted box office values
+            confusion_matrices: list - List to store (name, matrix) tuples
+    """
     category_order = ['Flop', 'Below Average', 'Average', 'Hit', 'Blockbuster']
     category_map = {label: idx for idx, label in enumerate(category_order)}
 
@@ -495,6 +616,13 @@ def collect_confusion_matrices(name, y_true, y_pred, confusion_matrices):
     confusion_matrices.append((name, cm))  # Store model name and its confusion matrix
 
 def plot_confusion_matrices(confusion_matrices, ds_name):
+    """
+       Plot confusion matrices for multiple models in groups of 6.
+
+       Parameters:
+           confusion_matrices: list - List of (name, matrix) tuples
+           ds_name: str - Dataset name for output files
+    """
     num_models = len(confusion_matrices)
     models_per_figure = 6  # Each figure should contain at most 6 confusion matrices
     cols = 3  # 3 columns per row
@@ -525,7 +653,17 @@ def plot_confusion_matrices(confusion_matrices, ds_name):
 
 
 def plot_feature_importance(feature_importance, feature_names, ds_name):
-    """Plot feature importance for models that support it in a 3x2 grid across 3 PNG files."""
+    """
+       Plot feature importance for models that support it in a 3x2 grid across 3 PNG files.
+
+       Parameters:
+           feature_importance: list - List of (name, importance) tuples
+           feature_names: list - List of feature names
+           ds_name: str - Dataset name for output files
+
+       Returns:
+           dict: Dictionary mapping model names to their top features
+    """
     selected_features_per_model = {}
     models_per_figure = 6  # Maximum number of models per figure (3x2 grid)
     num_models = len(feature_importance)
@@ -570,6 +708,15 @@ def plot_feature_importance(feature_importance, feature_names, ds_name):
 
 # Main program
 def main():
+    """
+        Main execution function for the machine learning pipeline.
+
+        This function orchestrates the entire workflow:
+        1. Data loading and preparation
+        2. Model training and validation
+        3. Feature importance analysis
+        4. Testing with selected features
+    """
     X_train, X_test, y_train, y_test, features, ds_name = load_and_prepare_data()
 
     if X_train is None or X_test is None:

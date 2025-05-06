@@ -1,35 +1,38 @@
 Preprocessed CSV files to use (regression):
-prep_movies.csv
-or df2.csv
-or 1Mnewest.csv
-or 1Mfull
+dataset1.csv
+dataset2.csv
+dataset3.csv
 
 Target Column: revenue
 
 
 Preprocessed CSV files to use (Classification):
-data1class.csv
-df2.csv
-1Mnewclass
+dataset1class.csv
+dataset2class.csv
+dataset3class.csv
 
 Target Column: revenue_class
 
+Run visual.py or Classification and input the preferred dataset and Target Column
 
 
-
-Run Regression.py and input the preferred dataset and Target Column
-
-
-
-
-
-Output:
+Output (for regression models):
 Training "Algorithm" with 10-Fold Cross-Validation...
-Linear Regression:
+"Model" Test Results:
   MSE (Mean): ######
   RMSE (Mean): ######
   R2 (Mean): ######
   One-Away Accuracy: ##.##%
   Exact Accuracy: ##.##%
+
+Output (for classification models):
+"Model" Test Results:
+  Accuracy: #.###
+  Precision: #.###
+  Recall: #.###
+  F1 Score: #.####
+  One-Away Accuracy: ##.###
+
+
 
 Expected vs actual movies in each categories sorted by algorithm models displayed at the end

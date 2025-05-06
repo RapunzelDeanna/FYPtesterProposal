@@ -1,6 +1,5 @@
 # import cpi
 import pandas as pd
-from matplotlib import pyplot as plt
 from sklearn.preprocessing import LabelEncoder, MinMaxScaler, MultiLabelBinarizer
 import time
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -75,14 +74,10 @@ df['release_day_name'] = df['release_date'].dt.day_name()
 day_counts = df['release_day_name'].value_counts()
 
 
-
-
-
 # Sort days of the week in order
 day_order = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
 day_counts = day_counts.reindex(day_order)
 df = df.drop(['release_day_name'], axis=1)
-
 
 
 
@@ -274,18 +269,6 @@ end_time = time.time()
 elapsed_time = end_time - start_time
 print("Time taken: ", elapsed_time)
 
-# Plot the day of the week graph
-plt.figure(figsize=(10, 6))
-day_counts.plot(kind='bar', color='skyblue', edgecolor='black')
-plt.title('Number of Movies Released by Day of the Week', fontsize=16)
-plt.xlabel('Day of the Week', fontsize=14)
-plt.ylabel('Number of Movies', fontsize=14)
-plt.xticks(rotation=45, fontsize=12)
-plt.grid(axis='y', linestyle='--', alpha=0.7)
-
-# Show the plot
-plt.tight_layout()
-#plt.show()
 
 
 

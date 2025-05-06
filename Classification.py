@@ -1,3 +1,7 @@
+# © 2025 Deanna White. All rights reserved.
+#  COMP1682 Final Year Project
+# Purpose: Classification prediction for box office revenue
+
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
@@ -21,6 +25,18 @@ import time
 start_time = time.time()
 
 def load_and_prepare_data():
+    """
+    Load and prepare dataset for machine learning analysis.
+
+    This function handles:
+    - Dataset loading from CSV
+    - Target column selection
+    - Time-based data splitting
+    - Feature scaling
+
+    Returns:
+        X_train_scaled, X_test_scaled, y_train, y_test, features, ds_name
+    """
     ds_name = input("Enter the dataset name (without .csv): ")
 
     try:
@@ -72,6 +88,12 @@ def load_and_prepare_data():
 
 
 def get_models(X_train, y_train):
+    """
+        Initialize and tune multiple machine learning models.
+
+        Returns:
+            dict: Dictionary of tuned models with their names as keys
+        """
     models = {
         "Logistic Regression": tune_logistic_regression(X_train, y_train),
         "Ridge Classifier": tune_ridge_classifier(X_train, y_train),
@@ -109,6 +131,16 @@ def get_models(X_train, y_train):
 
 
 def tune_logistic_regression(X_train, y_train):
+    """
+        Tune Logistic Regression hyperparameters using GridSearchCV.
+
+        Parameters:
+            X_train: Training features
+            y_train: Training target
+
+        Returns:
+            Best performing Logistic Regression model
+        """
     print("\nTuning Logistic Regression Hyperparameters")
     # Define parameter grids for different solver/penalty combinations
     param_grids = [
@@ -281,6 +313,15 @@ def one_away_accuracy(y_true, y_pred):
     return float(correct / len(y_true) * 100)
 
 def validate_models(models, X_train, y_train, cv_splits=10):
+    """
+       Validate models using KFold cross-validation.
+
+       Parameters:
+           models: Dictionary of models to validate
+           X_train: Training features
+           y_train: Training target
+           cv_splits: Number of cross-validation folds
+       """
     kf = KFold(n_splits=cv_splits, shuffle=True, random_state=77)
 
     for name, model in models.items():
@@ -290,6 +331,19 @@ def validate_models(models, X_train, y_train, cv_splits=10):
 
 
 def test_models(ds_name, models, X_train, X_test, y_train, y_test, features, selected_features=None):
+    """
+        Test models on the test set and generate visualizations.
+
+        Parameters:
+            ds_name: Dataset name
+            models: Dictionary of models to test
+            X_train: Training features
+            X_test: Test features
+            y_train: Training target
+            y_test: Test target
+            features: List of feature names
+            selected_features: Optional list of selected features to use
+        """
     confusion_matrices = []
     category_comparisons = []
     feature_importances = []  # Store feature importance data
@@ -380,6 +434,13 @@ def test_models(ds_name, models, X_train, X_test, y_train, y_test, features, sel
 
 
 def plot_confusion_matrices(confusion_matrices, ds_name):
+    """
+        Plot confusion matrices for multiple models in groups of 6.
+
+        Parameters:
+            confusion_matrices: List of (name, matrix, labels) tuples
+            ds_name: Dataset name for filename
+        """
     num_models = len(confusion_matrices)
     models_per_figure = 6
     cols = 3
@@ -411,7 +472,16 @@ def plot_confusion_matrices(confusion_matrices, ds_name):
 
 
 def plot_category_comparison(ds_name, ax, y_true, y_pred, classes=None):
-    """Plot comparison between true and predicted classifications."""
+    """
+    Plot comparison between true and predicted classifications.
+
+    Parameters:
+        ds_name: Dataset name
+        ax: Matplotlib axis to plot on
+        y_true: True labels
+        y_pred: Predicted labels
+        classes: Optional list of class labels
+    """
     if classes is None:
         classes = np.arange(5)
 
@@ -453,11 +523,12 @@ def plot_category_comparison(ds_name, ax, y_true, y_pred, classes=None):
 
 def plot_feature_importances(feature_importances, features, ds_name):
     """
-    Plot feature importance scores in groups of 6 models per page.
+    Plot feature importance scores for multiple models in groups of 6.
 
-    Args:
-        feature_importances: List of tuples (name, importance) for each model
+    Parameters:
+        feature_importances: List of (name, importance) tuples
         features: List of feature names
+        ds_name: Dataset name for filename
     """
     num_models = len(feature_importances)
     models_per_figure = 6
@@ -502,6 +573,17 @@ def plot_feature_importances(feature_importances, features, ds_name):
         plt.close(fig)
 
 def get_feature_importance(model, X_train, y_train):
+    """
+        Calculate feature importance for a given model.
+
+        Parameters:
+            model: Fitted model object
+            X_train: Training features
+            y_train: Training target
+
+        Returns:
+            array-like: Feature importance scores or None if not supported
+        """
     model.fit(X_train, y_train)
     if hasattr(model, "feature_importances_"):
         return model.feature_importances_
@@ -510,7 +592,28 @@ def get_feature_importance(model, X_train, y_train):
     return None
 
 def important_features(ds_name, models, features, X_train, X_test, y_train, y_test, top_n=20):
-    """Get feature importance and select top features based on best model."""
+    """
+    Analyze feature importance across models and select top features.
+
+    This function:
+    1. Evaluates each model's performance
+    2. Calculates feature importance for each model
+    3. Selects top features based on the best performing model
+    4. Creates visualization of feature importance
+
+    Parameters:
+        ds_name: Dataset name for output files
+        models: Dictionary of trained models
+        features: List of feature names
+        X_train: Training features
+        X_test: Test features
+        y_train: Training target
+        y_test: Test target
+        top_n: Number of top features to select (default: 20)
+
+    Returns:
+        tuple: (X_train_selected, X_test_selected, selected_features, best_model_name)
+    """
     feature_importance = {}
     model_performance = {}
 
@@ -591,6 +694,15 @@ def important_features(ds_name, models, features, X_train, X_test, y_train, y_te
 
 
 def main():
+    """
+        Main execution function for the machine learning pipeline.
+
+        This function orchestrates the entire workflow:
+        1. Data loading and preparation
+        2. Model training and validation
+        3. Feature importance analysis
+        4. Testing with selected features
+    """
     X_train, X_test, y_train, y_test, features, ds_name = load_and_prepare_data()
 
     if X_train is None or X_test is None:

@@ -1,0 +1,112 @@
+Dataset 'dataset1' loaded successfully.
+Dataset 'dataset1' loaded successfully.
+Shape: (3969, 14)
+Shape: (3969, 14)
+
+Available columns: ['Running time', 'Actors Box Office %', 'Director Box Office %', 'Oscar and Golden Globes nominations', 'Oscar and Golden Globes awards', 'release_year', 'IMDb score', 'genre_encoded', 'AdjBudget', 'revenue', 'Director_mean_target', 'Actor 1_mean_target', 'Actor 2_mean_target', 'Actor 3_mean_target']
+
+Available columns: ['Running time', 'Actors Box Office %', 'Director Box Office %', 'Oscar and Golden Globes nominations', 'Oscar and Golden Globes awards', 'release_year', 'IMDb score', 'genre_encoded', 'AdjBudget', 'revenue', 'Director_mean_target', 'Actor 1_mean_target', 'Actor 2_mean_target', 'Actor 3_mean_target']
+train data:        Running time  ...  Actor 3_mean_target
+3466           100  ...             6.439078
+2649            96  ...             6.689078
+3267            66  ...             6.472411
+2000            89  ...             6.672411
+1843            65  ...             6.755745
+...            ...  ...                  ...
+2584            84  ...             6.289078
+3046           107  ...             6.781607
+2639            93  ...             6.579308
+1175           103  ...             6.305745
+2991            99  ...             6.781607
+
+[3175 rows x 14 columns]
+train data:        Running time  ...  Actor 3_mean_target
+3466           100  ...             6.439078
+2649            96  ...             6.689078
+3267            66  ...             6.472411
+2000            89  ...             6.672411
+1843            65  ...             6.755745
+...            ...  ...                  ...
+2584            84  ...             6.289078
+3046           107  ...             6.781607
+2639            93  ...             6.579308
+1175           103  ...             6.305745
+2991            99  ...             6.781607
+
+[3175 rows x 14 columns]
+test data:        Running time  ...  Actor 3_mean_target
+486            109  ...             6.505745
+937            107  ...             6.529308
+1514            90  ...             6.316808
+420            111  ...             6.372411
+429            100  ...             6.459385
+...            ...  ...                  ...
+1682           116  ...             6.190638
+545             95  ...             6.776352
+1681           116  ...             6.190638
+3850            96  ...             6.589078
+0              144  ...             6.476352
+
+[794 rows x 14 columns]
+test data:        Running time  ...  Actor 3_mean_target
+486            109  ...             6.505745
+937            107  ...             6.529308
+1514            90  ...             6.316808
+420            111  ...             6.372411
+429            100  ...             6.459385
+...            ...  ...                  ...
+1682           116  ...             6.190638
+545             95  ...             6.776352
+1681           116  ...             6.190638
+3850            96  ...             6.589078
+0              144  ...             6.476352
+
+[794 rows x 14 columns]
+Train Release Year Range: 1929 - 2011
+Train Release Year Range: 1929 - 2011
+Test Release Year Range: 2011 - 2016
+Test Release Year Range: 2011 - 2016
+
+Tuning Linear Regression (no hyperparameters)
+
+Tuning Linear Regression (no hyperparameters)
+
+Tuning Ridge Hyperparameters
+
+Tuning Ridge Hyperparameters
+Best Ridge Parameters: {'alpha': 10}
+Best Ridge Parameters: {'alpha': 10}
+
+Tuning Lasso Hyperparameters
+
+Tuning Lasso Hyperparameters
+Best Lasso Parameters: {'alpha': 10}
+Best Lasso Parameters: {'alpha': 10}
+
+Tuning ElasticNet Hyperparameters
+
+Tuning ElasticNet Hyperparameters
+Best ElasticNet Parameters: {'alpha': 1, 'l1_ratio': 0.9}
+Best ElasticNet Parameters: {'alpha': 1, 'l1_ratio': 0.9}
+
+Tuning Decision Tree Hyperparameters
+
+Tuning Decision Tree Hyperparameters
+Best Decision Tree Parameters: {'max_depth': 5, 'min_samples_split': 5}
+Best Decision Tree Parameters: {'max_depth': 5, 'min_samples_split': 5}
+
+Tuning Random Forest Hyperparameters
+
+Tuning Random Forest Hyperparameters
+Best Random Forest Parameters: {'max_depth': 20, 'n_estimators': 200}
+Best Random Forest Parameters: {'max_depth': 20, 'n_estimators': 200}
+
+Tuning Extra Trees Hyperparameters
+
+Tuning Extra Trees Hyperparameters
+Best Extra Trees Parameters: {'max_depth': 10, 'n_estimators': 100}
+Best Extra Trees Parameters: {'max_depth': 10, 'n_estimators': 100}
+
+Tuning Gradient Boosting Hyperparameters
+
+Tuning Gradient Boosting Hyperparameters
