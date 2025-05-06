@@ -1,26 +1,20 @@
-import pandas as pd
-import numpy as np
-from matplotlib import pyplot as plt
-from sklearn.model_selection import KFold, cross_val_score, cross_val_predict, GridSearchCV
-from sklearn.preprocessing import StandardScaler
-from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
-from sklearn.svm import SVR
-from sklearn.neighbors import KNeighborsRegressor
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor, AdaBoostRegressor, ExtraTreesRegressor
-from xgboost import XGBRegressor
-from lightgbm import LGBMRegressor
-from catboost import CatBoostRegressor
-from sklearn.neural_network import MLPRegressor
-from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, mean_squared_error, r2_score
-from sklearn.ensemble import StackingRegressor
-from sklearn.model_selection import train_test_split
-import seaborn as sns
-
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
 import time
+import numpy as np
+import pandas as pd
+from catboost import CatBoostRegressor
+from lightgbm import LGBMRegressor
+from matplotlib import pyplot as plt
+from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor, AdaBoostRegressor
+from sklearn.ensemble import StackingRegressor
+from sklearn.linear_model import Ridge, Lasso, ElasticNet, LinearRegression
+from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay, mean_squared_error, r2_score
+from sklearn.model_selection import GridSearchCV
+from sklearn.model_selection import KFold, cross_val_score
+from sklearn.neighbors import KNeighborsRegressor
+from sklearn.preprocessing import StandardScaler
+from sklearn.svm import SVR
+from sklearn.tree import DecisionTreeRegressor
+from xgboost import XGBRegressor
 
 # Takes a while with cpi so just checking
 start_time = time.time()
@@ -37,6 +31,7 @@ def load_and_prepare_data():
         print("\nAvailable columns:", dataset.columns.tolist())
         target_column = input("Enter the target column name: ")
 
+        # Ensures the target_column is in the dataset
         if target_column not in dataset.columns:
             print(f"Error: '{target_column}' not found in dataset.")
             return None, None, None, None, None
@@ -48,13 +43,15 @@ def load_and_prepare_data():
 
         # Sort by release_year (ascending order)
         dataset = dataset.sort_values(by="release_year")
-
         # Split dataset (80% train, 20% test based on release_year)
         split_index = int(len(dataset) * 0.8)
         train_data = dataset.iloc[:split_index]
         test_data = dataset.iloc[split_index:]
+        # Checks what the features look like
         print("train data: ", train_data)
         print("test data: ", test_data)
+        # For random split comparison
+        # train_data, test_data = train_test_split(dataset, test_size=0.2, random_state=42)
 
         # Features selection
         features = [col for col in dataset.columns if col != target_column]
@@ -96,20 +93,7 @@ def auto_select_features_target(dataset):
     print(f"Target column selected: {target_column}")
     return features, target_column
 
-from sklearn.linear_model import Ridge, Lasso, ElasticNet, LinearRegression
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.ensemble import RandomForestRegressor, ExtraTreesRegressor, GradientBoostingRegressor, AdaBoostRegressor
-from sklearn.svm import SVR
-from sklearn.neighbors import KNeighborsRegressor
-from xgboost import XGBRegressor
-from lightgbm import LGBMRegressor
-from catboost import CatBoostRegressor
-from sklearn.model_selection import GridSearchCV
-
-def tune_linear_regression(X_train, y_train):
-    print("\nTuning Linear Regression (no hyperparameters)")
-    return LinearRegression()
-
+# Hyperparameter Tuning
 def tune_ridge(X_train, y_train):
     print("\nTuning Ridge Hyperparameters")
     param_grid = {'alpha': [0.001, 0.01, 0.1, 1, 10]}
@@ -240,27 +224,17 @@ def tune_catboost(X_train, y_train):
     print(f"Best CatBoost Parameters: {grid_search.best_params_}")
     return grid_search.best_estimator_
 
-def tune_svr_rbf(X_train, y_train):
-    print("\nTuning SVR (RBF Kernel) Hyperparameters")
+def tune_svr(X_train, y_train):
+    print("\nTuning SVR Hyperparameters (RBF vs Linear Kernels)")
     param_grid = {
+        'kernel': ['linear', 'rbf'],
         'C': [0.1, 1, 10],
-        'gamma': ['scale', 'auto']
+        'gamma': ['scale', 'auto']  # 'gamma' is only relevant for 'rbf', will be ignored for 'linear'
     }
-    model = SVR(kernel='rbf')
+    model = SVR()
     grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
     grid_search.fit(X_train, y_train)
-    print(f"Best SVR (RBF) Parameters: {grid_search.best_params_}")
-    return grid_search.best_estimator_
-
-def tune_svr_linear(X_train, y_train):
-    print("\nTuning SVR (Linear Kernel) Hyperparameters")
-    param_grid = {
-        'C': [0.1, 1, 10]
-    }
-    model = SVR(kernel='linear')
-    grid_search = GridSearchCV(model, param_grid, cv=5, scoring='r2', n_jobs=-1)
-    grid_search.fit(X_train, y_train)
-    print(f"Best SVR (Linear) Parameters: {grid_search.best_params_}")
+    print(f"Best SVR Parameters: {grid_search.best_params_}")
     return grid_search.best_estimator_
 
 def tune_knn(X_train, y_train):
@@ -276,7 +250,7 @@ def tune_knn(X_train, y_train):
 
 def get_models(X_train, y_train):
     models = {
-        "Linear Regression": tune_linear_regression(X_train, y_train),
+        "Linear Regression": LinearRegression(),
         "Ridge Regression": tune_ridge(X_train, y_train),
         "Lasso Regression": tune_lasso(X_train, y_train),
         "ElasticNet": tune_elasticnet(X_train, y_train),
@@ -288,8 +262,7 @@ def get_models(X_train, y_train):
         "XGBoost": tune_xgboost(X_train, y_train),
         "LightGBM": tune_lightgbm(X_train, y_train),
         "CatBoost": tune_catboost(X_train, y_train),
-        "SVR (RBF Kernel)": tune_svr_rbf(X_train, y_train),
-        "SVR (Linear Kernel)": tune_svr_linear(X_train, y_train),
+        "SVR": tune_svr(X_train, y_train),
         "KNN": tune_knn(X_train, y_train),
         }
 
@@ -364,7 +337,7 @@ def test_models(ds_name, models, X_train, X_test, y_train, y_test, features):
         print(f"  Exact Accuracy: {exact_acc:.2f}%")
 
 
-            # Collect Confusion Matrix
+        # Collect Confusion Matrix data
         collect_confusion_matrices(name, y_test, y_pred_test, confusion_matrices)
 
         if hasattr(model, "feature_importances_"):  # Tree-based models
@@ -380,17 +353,17 @@ def test_models(ds_name, models, X_train, X_test, y_train, y_test, features):
         else:
             print(f"{name} does not have feature importance or coefficients.")
 
-            # After all models have been evaluated, plot confusion matrices
+    # After all models have been evaluated, plot confusion matrices
     plot_confusion_matrices(confusion_matrices, ds_name)
 
-            # Plot feature importance if any model supports it
+    # Plot feature importance if any model supports it
     if feature_importance:
         plot_feature_importance(feature_importance, features, ds_name)
 
-    return y_test, y_preds, plot_data  # Return test results
+    return y_test, y_preds, plot_data
 
 
-def important_features(models, features, X_train, X_test, y_train, y_test, top_n=20):
+def important_features(ds_name, models, features, X_train, X_test, y_train, y_test, top_n=20):
     feature_importance = {}
     model_performance = {}
 
@@ -404,12 +377,8 @@ def important_features(models, features, X_train, X_test, y_train, y_test, top_n
 
         # Calculate R² score to evaluate model performance
         r2 = r2_score(y_test, y_pred_test)
-
         # Store performance metrics for model comparison
         model_performance[name] = r2
-        # print("model name: ", model)
-        # print("model_performance", model_performance)
-        # If the model has feature importances, collect them
         if hasattr(model, "feature_importances_"):
             feature_importance[name] = model.feature_importances_
         elif hasattr(model, "coef_"):  # For linear models
@@ -418,7 +387,8 @@ def important_features(models, features, X_train, X_test, y_train, y_test, top_n
                 importance = importance.mean(axis=0)
             feature_importance[name] = importance
 
-        elif isinstance(model, StackingRegressor):  # Special handling for stacking model
+        # Special handling for stacking model
+        elif isinstance(model, StackingRegressor):
             stacked_importance = []
             for estimator in model.estimators_:
                 if isinstance(estimator, tuple):  # Unpack if named tuple
@@ -442,7 +412,6 @@ def important_features(models, features, X_train, X_test, y_train, y_test, top_n
 
     # Get the feature importances from the best model
     importance = feature_importance[best_model_name]
-
     # Sort the features based on importance (descending order)
     sorted_idx = np.argsort(importance)[::-1]
     top_features_idx = sorted_idx[:top_n]  # Select the top N features
@@ -454,10 +423,22 @@ def important_features(models, features, X_train, X_test, y_train, y_test, top_n
     X_train_selected = X_train[:, top_features_idx]
     X_test_selected = X_test[:, top_features_idx]
 
+    # Visualize the top N feature importances
+    plt.figure(figsize=(10, 6))
+    plt.barh(selected_features[::-1], importance[top_features_idx][::-1], color="skyblue")
+    plt.xlabel("Importance")
+    plt.title(f"Top {top_n} Most Important Features\n(Based on {best_model_name})")
+    plt.tight_layout()
+    plt.grid(axis='x', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(f'{ds_name}_important_feature_{best_model_name}.png',
+                bbox_inches='tight', dpi=300)
+    plt.close()
+
     return X_train_selected, X_test_selected, selected_features, best_model_name
 
 
-# # Categorize the predicted and actual values into categories
+# Categorize the predicted and actual values into categories
 def categorize_box_office(value):
     # if value > 1:
         if value < 1e6:
@@ -544,20 +525,25 @@ def plot_confusion_matrices(confusion_matrices, ds_name):
 
 
 def plot_feature_importance(feature_importance, feature_names, ds_name):
-    """Plot feature importance for models that support it in a 3x2 grid (6 models per figure)."""
+    """Plot feature importance for models that support it in a 3x2 grid across 3 PNG files."""
     selected_features_per_model = {}
-    models_per_figure = 6  # Maximum number of models per figure
+    models_per_figure = 6  # Maximum number of models per figure (3x2 grid)
     num_models = len(feature_importance)
 
-    for start in range(0, num_models, models_per_figure):
+    # Calculate number of figures needed
+    num_figures = -(-num_models // models_per_figure)  # Ceiling division
+
+    # Create a figure for each set of 6 models
+    for fig_num in range(num_figures):
+        start = fig_num * models_per_figure
         end = min(start + models_per_figure, num_models)
         subset_importance = feature_importance[start:end]
 
-        cols = 3  # Number of columns per row
-        rows = -(-len(subset_importance) // cols)  # Ceiling division to get row count
-        fig, axes = plt.subplots(rows, cols, figsize=(cols * 6, rows * 4))  # Adjust figure size
-        axes = axes.flatten()  # Flatten axes for easy iteration
+        # Create figure with 3x2 grid
+        fig, axes = plt.subplots(3, 2, figsize=(12, 15))
+        axes = axes.flatten()
 
+        # Plot each model's feature importance
         for i, (name, importance) in enumerate(subset_importance):
             sorted_idx = np.argsort(importance)[::-1][:20]  # Sort by importance (top 20 features)
             top_importance = importance[sorted_idx]
@@ -568,16 +554,18 @@ def plot_feature_importance(feature_importance, feature_names, ds_name):
             axes[i].invert_yaxis()  # Ensure highest importance is at the top
 
             selected_features_per_model[name] = top_feature_names
-        # Hide unused subplots in the last figure
+
+        # Remove any unused subplots
         for j in range(i + 1, len(axes)):
             fig.delaxes(axes[j])
 
+        # Save the figure
         plt.tight_layout()
-        plt.savefig(f'{ds_name}_feature_importance_{start // models_per_figure}.png',
+        plt.savefig(f'{ds_name}_feature_importance_{fig_num + 1}.png',
                     bbox_inches='tight', dpi=300)
-        plt.close()
+        plt.close(fig)
 
-        return selected_features_per_model
+    return selected_features_per_model
 
 
 # Main program
@@ -597,7 +585,7 @@ def main():
     test_models(ds_name, models, X_train, X_test, y_train, y_test, features)
     # Selecting important features
     X_train_selected, X_test_selected, selected_features, best_model_name = important_features(
-        models, features, X_train, X_test, y_train, y_test, top_n=20
+        ds_name, models, features, X_train, X_test, y_train, y_test, top_n=20
     )
 
     # Print the selected features and the best model
@@ -605,7 +593,7 @@ def main():
     print(f"Selected top features: {selected_features}")
     # Re-test models with selected features
     print("\nTesting models on the selected features...")
-    y_test, y_preds, plot_data = test_models(ds_name, models, X_train_selected, X_test_selected, y_train, y_test,
+    test_models(ds_name, models, X_train_selected, X_test_selected, y_train, y_test,
                                              selected_features)
     # End timer
     end_time = time.time()
@@ -613,8 +601,6 @@ def main():
     # Calculate time taken
     elapsed_time = end_time - start_time
     print("Time taken: ", elapsed_time)
-
-    # plot_model_results(models, plot_data, plot_category_comparison)
 
 
 if __name__ == "__main__":

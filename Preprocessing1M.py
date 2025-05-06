@@ -106,6 +106,7 @@ print(df)
 # print(latest_movies)
 
 # # Function to adjust movie budgets, earnings and box office numbers based on CPI
+# # Uncomment if movies older are required in dataset. Apple software only allows up to 2020 movies
 # def adjust_for_inflation(row, base_year=2020):
 #     # Ensure 'Release year' is an integer
 #     release_year = int(row['release_year'])  # Convert to int if necessary
@@ -176,33 +177,23 @@ print(top_10_movies)
 
 
 
-# Function to process multi-word phrases (replaces spaces with underscores)
+# Function to process multi-word phrases
 def process_keywords(keywords):
-    if pd.isna(keywords):  # Handle NaN values
+    if pd.isna(keywords):  # Handles NaN values
         return []
-
     # Split the keywords by commas
     keyword_list = keywords.split(", ")
-
     processed_keywords = []
     for kw in keyword_list:
         kw = kw.encode("utf-8", "ignore").decode("utf-8")  # Remove non-UTF characters
         kw = kw.encode("ascii", "ignore").decode("ascii")  # Remove non-ASCII characters
-        # kw = kw.lower()  # Convert to lowercase
         kw = "".join(c if c.isalnum() or c.isspace() else " " for c in kw)  # Remove special chars
         kw = kw.replace(" ", "_")  # Replace spaces in multi-word phrases with "_"
         processed_keywords.append(kw)
-
-
-
     return processed_keywords
 
-
-
-# Apply the function to the keywords column
 # Process keywords column
 df["keywords"] = df["keywords"].apply(process_keywords)
-
 # Convert list of keywords into a single string per row
 df["keywords"] = df["keywords"].apply(lambda x: " ".join(x))
 df = df.reset_index(drop=True)
@@ -215,8 +206,10 @@ tfidf_matrix = tfidf.fit_transform(df["keywords"])
 # Convert TF-IDF matrix to DataFrame
 tfidf_df = pd.DataFrame(tfidf_matrix.toarray(), columns=tfidf.get_feature_names_out())
 
-# Concatenate TF-IDF features with the original dataset
-df = pd.concat([df.drop(columns=["keywords"]), tfidf_df], axis=1)  # Drop original keywords column
+# Concatenate TF-IDF features with the original dataset and drops original keywords column
+df = pd.concat([df.drop(columns=["keywords"]), tfidf_df], axis=1)
+
+
 
 # Show completion message and new shape
 print("TF-IDF preprocessing completed. New shape:", df.shape)
@@ -227,11 +220,11 @@ print(df['revenue'].describe())
 print(df['revenue'].quantile([0.2, 0.4, 0.6, 0.8, 1.0]))
 
 def categorize_box_office(value):
-    if value < 1e6:  # < $1M
+    if value < 135e3:  # < $1M
         return 0
-    elif value < 6e6:  # $1M - $6M
+    elif value < 5e6:  # $1M - $6M
         return 1
-    elif value < 30e6:  # $6M - $30M
+    elif value < 25e6:  # $6M - $30M
         return 2
     elif value < 100e6:  # $30M - $100M
         return 3
@@ -244,25 +237,31 @@ df['revenue_class'] = df['revenue'].apply(categorize_box_office)
 # Drop original feature
 df = df.drop(['original_language', 'production_companies', 'release_date', 'status', 'title', 'id', 'revenue'], axis=1)
 
+# Initialize a dictionary to store ranges/unique values
+feature_summary = {}
 
+for column in df.columns:
+    col_data = df[column]
 
+    if pd.api.types.is_numeric_dtype(col_data):
+        # For numeric features, get min and max
+        feature_summary[column] = f"{col_data.min()} to {col_data.max()}"
+    else:
+        # For categorical/non-numeric, list unique values
+        unique_vals = col_data.unique()
+        if len(unique_vals) > 10:
+            feature_summary[column] = f"{len(unique_vals)} unique values"
+        else:
+            feature_summary[column] = ', '.join(map(str, unique_vals))
 
+# Convert to a DataFrame for easy export/display
+summary_df = pd.DataFrame({
+    'Feature': list(feature_summary.keys()),
+    'Range or Unique Values': list(feature_summary.values())
+})
 
-# # Copy dataset to avoid modifying the original
-# scaled_dataset = df.copy()
-# # Define columns that require Min-Max Scaling
-# columns_to_scale = ['vote_average', 'vote_count', 'runtime', 'popularity',
-#                     'budget', 'company_rev'
-# ]
-# # Initialize the Min-Max Scaler
-# scaler = MinMaxScaler()
-# # Apply scaling to the selected columns
-# scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
-# # Verify the scaling
-# print(scaled_dataset[columns_to_scale].describe())
-#
-# # Merge scaled values back into the original dataset
-# df[columns_to_scale] = scaled_dataset[columns_to_scale]
+# Show only the top 30 rows of the summary
+print(summary_df.head(31))
 
 
 # Preprocessed file is saved as Movies1M.csv

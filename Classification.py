@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 from matplotlib import pyplot as plt
-from sklearn.model_selection import KFold, cross_val_score, GridSearchCV
+from sklearn.model_selection import KFold, cross_val_score, GridSearchCV, train_test_split
 from sklearn.preprocessing import StandardScaler
 from sklearn.linear_model import LogisticRegression, RidgeClassifier
 from sklearn.svm import SVC
@@ -34,22 +34,23 @@ def load_and_prepare_data():
 
         if target_column not in dataset.columns:
             print(f"Error: '{target_column}' not found in dataset.")
-            return None, None, None, None, None
+            return None, None, None, None, None, None
 
         # Ensure 'release_year' is in the dataset
         if 'release_year' not in dataset.columns:
             print("Error: 'release_year' column not found in dataset. Required for time-based splitting.")
-            return None, None, None, None, None
+            return None, None, None, None, None, None
 
         # Sort by release_year (ascending order)
         dataset = dataset.sort_values(by="release_year")
-
         # Split dataset (80% train, 20% test based on release_year)
         split_index = int(len(dataset) * 0.8)
         train_data = dataset.iloc[:split_index]
         test_data = dataset.iloc[split_index:]
         print("train data: ", train_data)
         print("test data: ", test_data)
+        # For random split comparison
+        # train_data, test_data = train_test_split(dataset, test_size=0.2, random_state=42)
 
         # Features selection
         features = [col for col in dataset.columns if col != target_column]
@@ -366,11 +367,13 @@ def test_models(ds_name, models, X_train, X_test, y_train, y_test, features, sel
 
         for i, (name, y_true, y_pred) in enumerate(subset_comparisons):
             ax = axes[i // 3, i % 3]
-            plot_category_comparison(ax, y_true, y_pred_test)
+            plot_category_comparison(ds_name, ax, y_true, y_pred)
             ax.set_title(name)
 
         fig.tight_layout()
+        plt.savefig(f'{ds_name}_category_comparison_group_{start}split.png', bbox_inches='tight', dpi=300)
         plt.show()
+
 
     # Plot feature importance in groups of 6
     plot_feature_importances(feature_importances, features, ds_name)
@@ -402,7 +405,7 @@ def plot_confusion_matrices(confusion_matrices, ds_name):
             fig.delaxes(axes[j])
 
         plt.tight_layout()
-        plt.savefig(f'{ds_name}_confusion_matrix_{start // models_per_figure}.png',
+        plt.savefig(f'{ds_name}_confusion_matrix_{start // models_per_figure}split.png',
                     bbox_inches='tight', dpi=300)
         plt.close(fig)
 
@@ -447,19 +450,6 @@ def plot_category_comparison(ds_name, ax, y_true, y_pred, classes=None):
     ax.set_xticklabels(classes, rotation=45, ha='right')
     ax.legend(loc='upper right')
     plt.tight_layout()
-
-    # Get the figure containing this axes
-    fig = ax.get_figure()
-    # Get the position of this subplot in the grid
-    grid_pos = ax.get_subplotspec().get_position(fig)
-    # Calculate which group of 6 this plot belongs to
-    group_num = int(grid_pos.y0 // (1 / 6))
-
-    # Save every 6th plot
-    if grid_pos.y0 == group_num * (1 / 6):
-        plt.savefig(f'{ds_name}_category_comparison_group_{group_num}.png',
-                    bbox_inches='tight', dpi=300)
-        plt.close(fig)
 
 def plot_feature_importances(feature_importances, features, ds_name):
     """
@@ -507,7 +497,7 @@ def plot_feature_importances(feature_importances, features, ds_name):
                 ax.axis('off')
 
         fig.tight_layout()
-        plt.savefig(f'{ds_name}_feature_importance_{start//models_per_figure}.png',
+        plt.savefig(f'{ds_name}_feature_importance_{start//models_per_figure}split.png',
                    bbox_inches='tight', dpi=300)
         plt.close(fig)
 
@@ -519,7 +509,7 @@ def get_feature_importance(model, X_train, y_train):
         return np.abs(model.coef_).mean(axis=0)
     return None
 
-def important_features(models, features, X_train, X_test, y_train, y_test, top_n=20):
+def important_features(ds_name, models, features, X_train, X_test, y_train, y_test, top_n=20):
     """Get feature importance and select top features based on best model."""
     feature_importance = {}
     model_performance = {}
@@ -584,6 +574,18 @@ def important_features(models, features, X_train, X_test, y_train, y_test, top_n
     X_train_selected = X_train[:, sorted_idx]
     X_test_selected = X_test[:, sorted_idx]
 
+    # Visualize the top N feature importances
+    plt.figure(figsize=(10, 6))
+    plt.barh(selected_features[::-1], importance[sorted_idx][::-1], color="skyblue")
+    plt.xlabel("Importance")
+    plt.title(f"Top {top_n} Most Important Features\n(Based on {best_model_name})")
+    plt.tight_layout()
+    plt.grid(axis='x', linestyle='--', alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(f'{ds_name}_important_feature_{best_model_name}split.png',
+                bbox_inches='tight', dpi=300)
+    plt.close()
+
     return X_train_selected, X_test_selected, selected_features, best_model_name
 
 
@@ -606,7 +608,7 @@ def main():
     # Add feature importance analysis
     print("\nAnalyzing feature importance...")
     X_train_selected, X_test_selected, selected_features, best_model_name = important_features(
-        models, features, X_train, X_test, y_train, y_test, top_n=20
+        ds_name, models, features, X_train, X_test, y_train, y_test, top_n=20
     )
 
     print(f"Best model: {best_model_name}")

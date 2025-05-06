@@ -12,6 +12,11 @@ df = pd.read_csv('TMBD Movie Dataset 2.csv', encoding='ISO-8859-1')
 # Sort movies by id (ascending order)
 df = df.sort_values(by='id', ascending=True).reset_index(drop=True)
 
+# dropping irrelevant columns
+features_to_drop = ['Unnamed: 0', 'revenue', 'budget', 'imdb_id', 'original_title', 'homepage', 'tagline', 'overview', 'production_companies', 'profit']
+df = df.drop(features_to_drop, axis=1)
+
+
 # Checks if there are missing values that could cause issues further on
 missing_values = df.isnull().sum()
 #print(missing_values)
@@ -20,11 +25,6 @@ df = df.dropna()
 # check for missing values
 missing_values = df.isnull().sum()
 #print(missing_values)
-
-# dropping irrelevant columns
-features_to_drop = ['Unnamed: 0', 'revenue', 'budget', 'imdb_id', 'original_title', 'homepage', 'tagline', 'overview', 'production_companies', 'profit']
-df = df.drop(features_to_drop, axis=1)
-
 
 # Handle multiple genres
 def preprocess_genres(dataframe, genre_column):
@@ -141,22 +141,6 @@ print("TF-IDF preprocessing completed. New shape:", df.shape)
 print(df.head())
 
 
-# # Copy dataset to avoid modifying the original
-# scaled_dataset = df.copy()
-# # Define columns that require Min-Max Scaling
-# columns_to_scale = [
-#     'popularity', 'runtime', 'vote_count',
-#     'budget_adj', 'popularity_encoded', 'star_power', 'director_power'
-# ]
-# # Initialize the Min-Max Scaler
-# scaler = MinMaxScaler()
-# # Apply scaling to the selected columns
-# scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
-# # Verify the scaling
-# print(scaled_dataset[columns_to_scale].describe())
-# # Merge scaled values back into the original dataset
-# df[columns_to_scale] = scaled_dataset[columns_to_scale]
-
 df = df.rename(columns={'revenue_adj': 'revenue'})
 print(df['revenue'].describe())
 print(df['revenue'].quantile([0.2, 0.4, 0.6, 0.8, 1.0]))
@@ -177,6 +161,9 @@ df['revenue_class'] = df['revenue'].apply(categorize_box_office)
 # End timer
 end_time = time.time()
 
+
+
+
 # Calculate time taken
 elapsed_time = end_time - start_time
 print("Time taken: ", elapsed_time)
@@ -193,7 +180,35 @@ plt.grid(axis='y', linestyle='--', alpha=0.7)
 plt.tight_layout()
 #plt.show()
 
-df = df.drop(['popularity_level', 'release_date', 'release_day_name', 'cast', 'director', 'id', 'revenue'], axis=1)
+df = df.drop(['popularity_level', 'release_date', 'release_day_name', 'cast', 'director', 'id', 'revenue', 'popularity'], axis=1)
+
+
+# Initialize a dictionary to store ranges/unique values
+feature_summary = {}
+
+for column in df.columns:
+    col_data = df[column]
+
+    if pd.api.types.is_numeric_dtype(col_data):
+        # For numeric features, get min and max
+        feature_summary[column] = f"{col_data.min()} to {col_data.max()}"
+    else:
+        # For categorical/non-numeric, list unique values
+        unique_vals = col_data.unique()
+        if len(unique_vals) > 10:
+            feature_summary[column] = f"{len(unique_vals)} unique values"
+        else:
+            feature_summary[column] = ', '.join(map(str, unique_vals))
+
+# Convert to a DataFrame for easy export/display
+summary_df = pd.DataFrame({
+    'Feature': list(feature_summary.keys()),
+    'Range or Unique Values': list(feature_summary.values())
+})
+
+# Show only the top 30 rows of the summary
+print(summary_df.head(31))
+
 
 #Preprocessed data is saved to a file (for faster testing purposes)
 df.to_csv('dataset2class.csv', index=False)

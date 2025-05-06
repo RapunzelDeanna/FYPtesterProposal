@@ -28,7 +28,6 @@ label_encoder = LabelEncoder()
 df['genre_encoded'] = label_encoder.fit_transform(df['Genre'])
 columns_to_view = ['Genre', 'genre_encoded']
 df_copy = df[columns_to_view].copy()
-#print(df_copy)
 
 # Create a mapping of each category to its encoded value
 category_mapping = pd.DataFrame({
@@ -57,35 +56,25 @@ cpi_key_df = pd.DataFrame(list(cpi_values.items()), columns=['Year', 'CPI'])
 # keep consistency across datasets
 df.rename(columns={'Release year': 'release_year'}, inplace=True)
 
-# Display the CPI key
-#print(cpi_key_df)
 
 # Function to adjust movie budgets and box office numbers based on CPI
 def adjust_for_inflation(row, base_year=2016):
     # Ensure 'Release year' is an integer
     release_year = int(row['release_year'])
-
     # Get the CPI for the release year
     release_year_cpi = cpi.get(release_year)
-
     # Get the CPI for the base year (2016)
     base_year_cpi = cpi.get(base_year)
-
     # Adjust the budget
     adjusted_budget = row['Budget'] * (base_year_cpi / release_year_cpi)
-
     # Adjust the box office
     adjusted_box_office = row['Box Office'] * (base_year_cpi / release_year_cpi)
-
     return pd.Series([adjusted_budget, adjusted_box_office])
-
-# Convert 'Release year' to integer if necessary
+# Convert 'Release year' to integer
 df['release_year'] = pd.to_numeric(df['release_year'], errors='coerce', downcast='integer')
-
 # Apply the function to adjust the budget and box office
 df[['AdjBudget', 'AdjBoxOffice']] = df.apply(adjust_for_inflation, axis=1)
 feature_drop = ['Budget', 'Box Office']
-
 # Drop the specified features
 df = df.drop(feature_drop, axis=1)
 print("Inflation done")
@@ -113,13 +102,6 @@ df['Director_mean_target'] = df['Director'].map(target_mean['smoothed_mean'])
 print(df[['Director', 'IMDb score', 'Director_mean_target']])
 
 
-
-
-
-
-
-
-
 # Set the actor columns to a variable to repeat the process
 actor_columns = ['Actor 1', 'Actor 2', 'Actor 3']
 
@@ -143,29 +125,6 @@ for actor_col in actor_columns:
     target_mean['smoothed_mean'] = (target_mean['mean'] * target_mean['count'] + global_mean * m) / (target_mean['count'] + m)
     df[f'{actor_col}_mean_target'] = df[actor_col].map(target_mean['smoothed_mean'])
 
-# Display the results
-#print(df[['Director', 'IMDb score', 'Actor 1', 'Actor 2', 'Actor 3', 'Actor 1_mean_target', 'Actor 2_mean_target', 'Actor 3_mean_target']])
-
-
-
-
-# # Copy dataset to avoid modifying the original
-# scaled_dataset = df.copy()
-# # Define columns that require Min-Max Scaling
-# columns_to_scale = ['Running time', 'Actors Box Office %', 'Director Box Office %',
-#     'Oscar and Golden Globes nominations', 'Oscar and Golden Globes awards',
-#     'IMDb score', 'AdjBudget', 'Director_mean_target',
-#     'Actor 1_mean_target', 'Actor 2_mean_target', 'Actor 3_mean_target'
-# ]
-# # Initialize the Min-Max Scaler
-# scaler = MinMaxScaler()
-# # Apply scaling to the selected columns
-# scaled_dataset[columns_to_scale] = scaler.fit_transform(df[columns_to_scale])
-# # Verify the scaling
-# print(scaled_dataset[columns_to_scale].describe())
-#
-# # Merge scaled values back into the original dataset
-# df[columns_to_scale] = scaled_dataset[columns_to_scale]
 
 
 df = df.rename(columns={'AdjBoxOffice': 'revenue'})
@@ -191,8 +150,35 @@ df['revenue_class'] = df['revenue'].apply(categorize_box_office)
 # Drop the old features
 df = df.drop(['Director', 'Actor 1', 'Actor 2', 'Actor 3', 'revenue'], axis=1)
 
+# Initialize a dictionary to store ranges/unique values
+feature_summary = {}
 
-print(df)
+for column in df.columns:
+    col_data = df[column]
+
+    if pd.api.types.is_numeric_dtype(col_data):
+        # For numeric features, get min and max
+        feature_summary[column] = f"{col_data.min()} to {col_data.max()}"
+    else:
+        # For categorical/non-numeric, list unique values
+        unique_vals = col_data.unique()
+        if len(unique_vals) > 10:
+            feature_summary[column] = f"{len(unique_vals)} unique values"
+        else:
+            feature_summary[column] = ', '.join(map(str, unique_vals))
+
+# Convert to a DataFrame for easy export/display
+summary_df = pd.DataFrame({
+    'Feature': list(feature_summary.keys()),
+    'Range or Unique Values': list(feature_summary.values())
+})
+
+print(summary_df)
+
+value_counts = df['Actors Box Office %'].value_counts()
+
+# Display the top values
+print(value_counts)
 
 #Preprocessed data is saved to the prep_movies.csv file
 df.to_csv('dataset1class.csv', index=False)
